@@ -60,8 +60,45 @@ model_bert.eval()
 print("✓ BERT模型加载完成")
 
 # 加载ViLT视觉-语言模型
-processor_vilt = ViltProcessor.from_pretrained(VILT_MODEL_PATH)
-model_vilt = ViltModel.from_pretrained(VILT_MODEL_PATH).to(device)
+# 处理自定义tokenizer问题
+try:
+    # 尝试加载完整的processor (如果模型使用标准tokenizer)
+    processor_vilt = ViltProcessor.from_pretrained(VILT_MODEL_PATH, trust_remote_code=True)
+    print("✓ ViLT Processor加载完成 (使用自定义tokenizer)")
+except Exception as e:
+    print(f"无法加载ViltProcessor: {e}")
+    print("尝试分别加载image processor和tokenizer...")
+
+    # 分别加载image processor和BERT tokenizer
+    from transformers import ViltImageProcessor, BertTokenizer
+    try:
+        processor_vilt_image = ViltImageProcessor.from_pretrained(VILT_MODEL_PATH)
+        # 对于文本部分，使用标准的BERT tokenizer
+        processor_vilt_text = BertTokenizer.from_pretrained(BERT_MODEL_PATH)
+        # 创建一个简单的包装类
+        class SimpleViltProcessor:
+            def __init__(self, image_processor, text_tokenizer):
+                self.image_processor = image_processor
+                self.tokenizer = text_tokenizer
+
+            def __call__(self, images=None, text=None, return_tensors=None, padding=True, truncation=True):
+                encoding = {}
+                if images is not None:
+                    image_encoding = self.image_processor(images, return_tensors=return_tensors)
+                    encoding.update(image_encoding)
+                if text is not None and text.strip():
+                    text_encoding = self.tokenizer(text, return_tensors=return_tensors,
+                                                   padding=padding, truncation=truncation)
+                    encoding.update(text_encoding)
+                return encoding
+
+        processor_vilt = SimpleViltProcessor(processor_vilt_image, processor_vilt_text)
+        print("✓ ViLT Image Processor和Tokenizer分别加载完成")
+    except Exception as e2:
+        print(f"错误: 无法加载ViLT组件: {e2}")
+        raise
+
+model_vilt = ViltModel.from_pretrained(VILT_MODEL_PATH, trust_remote_code=True).to(device)
 model_vilt.eval()
 print("✓ ViLT模型加载完成")
 
