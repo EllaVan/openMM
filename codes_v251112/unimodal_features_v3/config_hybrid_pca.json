@@ -1,0 +1,48 @@
+{
+  "description": "混合配置: 小模型(384d) + 音频PCA降维(768d→384d)",
+  "text": {
+    "model_name": "microsoft/MiniLM-L6-v2",
+    "model_path": "/media/sda/wf/openMM/materials_task/all-MiniLM-L6-v2",
+    "max_length": 512,
+    "output_dim": 384,
+    "comment": "MiniLM-L6 直接输出 384 维"
+  },
+  "audio": {
+    "model_name": "facebook/hubert-base-ls960",
+    "model_path": "media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
+    "sample_rate": 16000,
+    "max_duration": 30.0,
+    "output_dim": 768,
+    "pca_reduction": {
+      "enabled": true,
+      "target_dim": 384,
+      "comment": "提取后立即 PCA 降维到 384"
+    },
+    "comment": "HuBERT-base 提取 768 维，然后 PCA 降到 384 维"
+  },
+  "video": {
+    "model_name": "/media/sda/wf/openMM/materials_task/vit_small_patch16_224.dino",
+    "model_path": "TO_BE_SPECIFIED",
+    "fps": 25,
+    "feature_mode": "cls",
+    "output_dim": 384,
+    "comment": "ViT-small-patch16 直接输出 384 维"
+  },
+  "memory_management": {
+    "max_frames": 500,
+    "video_batch_size": 32,
+    "enable_memory_cleanup": true
+  },
+  "final_dimensions": {
+    "text_features": 384,
+    "audio_features": 384,
+    "video_features": 384,
+    "comment": "所有模态统一到 384 维"
+  },
+  "model_download_commands": {
+    "text": "python -c \"from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('microsoft/MiniLM-L6-v2').save_pretrained('PATH'); AutoModel.from_pretrained('microsoft/MiniLM-L6-v2').save_pretrained('PATH')\"",
+    "video": "python -c \"from transformers import AutoImageProcessor, AutoModel; AutoImageProcessor.from_pretrained('google/vit-small-patch16-224').save_pretrained('PATH'); AutoModel.from_pretrained('google/vit-small-patch16-224').save_pretrained('PATH')\"",
+    "audio": "已有 HuBERT-base",
+    "note": "将 PATH 替换为实际保存路径"
+  }
+}
