@@ -1,0 +1,13 @@
+{
+  "description": "数据集提取配置",
+  "mosei": {
+    "base_dir": "/path/to/MOSEI",
+    "label_file": "/path/to/MOSEI/label/label.csv",
+    "output_dir": "./output/mosei_features"
+  },
+  "meld": {
+    "base_dir": "/path/to/MELD",
+    "output_dir": "./output/meld_features",
+    "split": "all"
+  }
+}
