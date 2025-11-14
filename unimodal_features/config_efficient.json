@@ -1,0 +1,22 @@
+{
+  "description": "多模态特征提取配置 - 内存优化版本",
+  "text": {
+    "model_path": "/media/sda/pingjm/MTCA/pretraining_model/RoBERTa/roberta-base",
+    "max_length": 512
+  },
+  "audio": {
+    "model_path": "/media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
+    "sample_rate": 16000,
+    "max_duration": 30.0
+  },
+  "video": {
+    "model_path": "/media/sda/pingjm/MTCA/pretraining_model/ViT/vit-base-patch16-224-in21k",
+    "fps": 25,
+    "feature_mode": "cls"
+  },
+  "memory_management": {
+    "max_frames": 500,
+    "video_batch_size": 32,
+    "enable_memory_cleanup": true
+  }
+}
