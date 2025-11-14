@@ -1,6 +1,6 @@
 """
-多模态特征提取器 - 仅支持本地模型路径
-使用 RoBERTa (文本) + HuBERT (音频) + ViT (视频)
+多模态特征提取器 - 内存优化版本
+支持本地模型路径 + 解决 CUDA OOM 问题
 """
 
 import os
@@ -10,11 +10,12 @@ import torch.nn as nn
 import numpy as np
 from typing import Dict, Optional, Tuple
 import warnings
+import gc
 warnings.filterwarnings('ignore')
 
 
 class MultimodalFeatureExtractor:
-    """多模态特征提取器（本地模型路径）"""
+    """多模态特征提取器（内存优化版）"""
 
     def __init__(self, config: Dict):
         """
@@ -26,10 +27,18 @@ class MultimodalFeatureExtractor:
         self.config = config
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        # 内存管理配置
+        self.max_frames = config.get('max_frames', 500)  # 最大帧数限制
+        self.video_batch_size = config.get('video_batch_size', 32)  # 视频帧批处理大小
+        self.enable_memory_cleanup = config.get('enable_memory_cleanup', True)
+
         print(f"\n{'='*60}")
-        print(f"初始化多模态特征提取器")
+        print(f"初始化多模态特征提取器（内存优化版）")
         print(f"{'='*60}")
         print(f"设备: {self.device}")
+        print(f"最大帧数限制: {self.max_frames}")
+        print(f"视频批处理大小: {self.video_batch_size}")
+        print(f"自动内存清理: {self.enable_memory_cleanup}")
 
         # 初始化各模态提取器
         self._init_text_extractor()
@@ -68,7 +77,9 @@ class MultimodalFeatureExtractor:
         self.audio_model.eval()
 
         self.sample_rate = audio_config.get('sample_rate', 16000)
+        self.max_audio_duration = audio_config.get('max_duration', 30.0)  # 最大音频时长（秒）
         print(f"  采样率: {self.sample_rate} Hz")
+        print(f"  最大时长: {self.max_audio_duration}s")
 
     def _init_video_extractor(self):
         """初始化视频特征提取器 (ViT)"""
@@ -86,6 +97,12 @@ class MultimodalFeatureExtractor:
         self.video_fps = video_config.get('fps', 25)
         self.feature_mode = video_config.get('feature_mode', 'cls')
         print(f"  帧率: {self.video_fps} fps, 特征模式: {self.feature_mode}")
+
+    def _cleanup_memory(self):
+        """清理 GPU 内存"""
+        if self.enable_memory_cleanup and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
 
     def extract_text_features(self, text: str, target_frames: Optional[int] = None) -> torch.Tensor:
         """
@@ -110,18 +127,21 @@ class MultimodalFeatureExtractor:
         # Extract features
         with torch.no_grad():
             outputs = self.text_model(**inputs)
-            # 使用所有 token 的隐藏状态 [1, seq_len, hidden_dim]
             features = outputs.last_hidden_state[0]  # [seq_len, hidden_dim]
+
+        # 移到 CPU 并清理
+        features = features.cpu()
+        self._cleanup_memory()
 
         # 对齐到目标帧数
         if target_frames is not None:
             features = self._align_features(features, target_frames)
 
-        return features.cpu()
+        return features
 
     def extract_audio_features(self, audio_path: str) -> Tuple[torch.Tensor, np.ndarray]:
         """
-        提取音频特征
+        提取音频特征（带时长限制）
 
         Args:
             audio_path: 音频文件路径
@@ -132,8 +152,12 @@ class MultimodalFeatureExtractor:
         """
         import librosa
 
-        # 加载音频
-        waveform, sr = librosa.load(audio_path, sr=self.sample_rate)
+        # 加载音频（限制最大时长）
+        waveform, sr = librosa.load(audio_path, sr=self.sample_rate, duration=self.max_audio_duration)
+
+        # 如果音频为空
+        if len(waveform) == 0:
+            raise ValueError(f"音频文件为空: {audio_path}")
 
         # 处理音频
         inputs = self.audio_processor(
@@ -146,19 +170,22 @@ class MultimodalFeatureExtractor:
         # 提取特征
         with torch.no_grad():
             outputs = self.audio_model(**inputs)
-            # HuBERT 输出: [1, time_steps, hidden_dim]
             features = outputs.last_hidden_state[0]  # [time_steps, hidden_dim]
+
+        # 移到 CPU 并清理
+        features = features.cpu()
+        self._cleanup_memory()
 
         # 计算时间戳
         num_frames = features.shape[0]
         duration = len(waveform) / sr
         timestamps = np.linspace(0, duration, num_frames)
 
-        return features.cpu(), timestamps
+        return features, timestamps
 
     def extract_video_features(self, video_path: str, timestamps: np.ndarray) -> torch.Tensor:
         """
-        提取视频特征
+        提取视频特征（分批处理，内存优化）
 
         Args:
             video_path: 视频文件路径
@@ -169,13 +196,22 @@ class MultimodalFeatureExtractor:
         """
         import cv2
 
+        # 限制最大帧数
+        if len(timestamps) > self.max_frames:
+            # 下采样时间戳
+            indices = np.linspace(0, len(timestamps) - 1, self.max_frames, dtype=int)
+            timestamps = timestamps[indices]
+
         # 打开视频
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS) or self.video_fps
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
 
-        # 提取关键帧（根据时间戳）
+        if total_frames == 0:
+            cap.release()
+            raise ValueError(f"视频文件无法读取或为空: {video_path}")
+
+        # 提取关键帧
         frames = []
         for timestamp in timestamps:
             frame_idx = int(timestamp * fps)
@@ -188,25 +224,40 @@ class MultimodalFeatureExtractor:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 frames.append(frame)
             else:
-                # 如果读取失败，使用黑帧
+                # 使用黑帧
                 frames.append(np.zeros((224, 224, 3), dtype=np.uint8))
 
         cap.release()
 
-        # 批量处理帧
-        inputs = self.video_processor(images=frames, return_tensors='pt').to(self.device)
+        # 分批处理帧（关键优化！）
+        all_features = []
+        num_frames = len(frames)
 
-        with torch.no_grad():
-            outputs = self.video_model(**inputs)
+        for i in range(0, num_frames, self.video_batch_size):
+            batch_frames = frames[i:i + self.video_batch_size]
 
-            if self.feature_mode == 'cls':
-                # 使用 [CLS] token
-                features = outputs.last_hidden_state[:, 0, :]  # [num_frames, hidden_dim]
-            else:
-                # 使用平均池化
-                features = outputs.last_hidden_state.mean(dim=1)  # [num_frames, hidden_dim]
+            # 处理当前批次
+            inputs = self.video_processor(images=batch_frames, return_tensors='pt').to(self.device)
 
-        return features.cpu()
+            with torch.no_grad():
+                outputs = self.video_model(**inputs)
+
+                if self.feature_mode == 'cls':
+                    batch_features = outputs.last_hidden_state[:, 0, :]  # [batch, hidden_dim]
+                else:
+                    batch_features = outputs.last_hidden_state.mean(dim=1)
+
+            # 移到 CPU
+            all_features.append(batch_features.cpu())
+
+            # 清理当前批次的 GPU 内存
+            del inputs, outputs, batch_features
+            self._cleanup_memory()
+
+        # 拼接所有批次
+        features = torch.cat(all_features, dim=0)  # [num_frames, hidden_dim]
+
+        return features
 
     def _align_features(self, features: torch.Tensor, target_frames: int) -> torch.Tensor:
         """
@@ -243,7 +294,7 @@ class MultimodalFeatureExtractor:
         video_path: str
     ) -> Dict[str, torch.Tensor]:
         """
-        提取多模态特征（自动对齐）
+        提取多模态特征（自动对齐 + 内存优化）
 
         Args:
             text: 文本内容
@@ -252,27 +303,37 @@ class MultimodalFeatureExtractor:
 
         Returns:
             features: 包含对齐后的特征字典
-                - audio_features: [num_frames, audio_dim]
-                - text_features: [num_frames, text_dim]
-                - video_features: [num_frames, video_dim]
-                - num_frames: 总帧数
         """
-        # 1. 提取音频特征（作为对齐基准）
-        audio_features, timestamps = self.extract_audio_features(audio_path)
-        num_frames = len(timestamps)
+        try:
+            # 1. 提取音频特征（作为对齐基准）
+            audio_features, timestamps = self.extract_audio_features(audio_path)
+            num_frames = len(timestamps)
 
-        # 2. 提取文本特征（对齐到音频帧数）
-        text_features = self.extract_text_features(text, target_frames=num_frames)
+            # 检查帧数
+            if num_frames > self.max_frames:
+                print(f"  ⚠ 警告: 帧数 {num_frames} 超过限制 {self.max_frames}，将下采样")
+                indices = np.linspace(0, num_frames - 1, self.max_frames, dtype=int)
+                audio_features = audio_features[indices]
+                timestamps = timestamps[indices]
+                num_frames = self.max_frames
 
-        # 3. 提取视频特征（根据音频时间戳）
-        video_features = self.extract_video_features(video_path, timestamps)
+            # 2. 提取文本特征（对齐到音频帧数）
+            text_features = self.extract_text_features(text, target_frames=num_frames)
 
-        return {
-            'audio_features': audio_features,
-            'text_features': text_features,
-            'video_features': video_features,
-            'num_frames': num_frames
-        }
+            # 3. 提取视频特征（根据音频时间戳）
+            video_features = self.extract_video_features(video_path, timestamps)
+
+            return {
+                'audio_features': audio_features,
+                'text_features': text_features,
+                'video_features': video_features,
+                'num_frames': num_frames
+            }
+
+        except Exception as e:
+            # 发生错误时清理内存
+            self._cleanup_memory()
+            raise e
 
     def extract_from_files(
         self,
@@ -315,6 +376,14 @@ def load_config(config_file: str) -> Dict:
     """加载配置文件"""
     with open(config_file, 'r', encoding='utf-8') as f:
         config = json.load(f)
+
+    # 添加默认内存管理配置
+    if 'max_frames' not in config:
+        config['max_frames'] = 500
+    if 'video_batch_size' not in config:
+        config['video_batch_size'] = 32
+    if 'enable_memory_cleanup' not in config:
+        config['enable_memory_cleanup'] = True
 
     print(f"\n{'='*60}")
     print(f"配置加载成功")
