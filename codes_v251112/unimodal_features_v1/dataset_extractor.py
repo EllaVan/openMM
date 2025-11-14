@@ -118,11 +118,11 @@ class MOSEIFeatureExtractor(DatasetFeatureExtractor):
         emotion_data = {emotion: [] for emotion in self.emotion_mapping.keys()}
 
         # 处理每个样本
-        for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征"):
+        for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征", ncols=80):
             video_id = row['video_id']
             clip_id = str(row['clip_id'])
             text = row['text']
-            emotion = row['emotion'].lower()
+            emotion = row['voted_emotion'].lower()
 
             # 文件路径
             audio_path = os.path.join(self.audio_dir, video_id, f"{clip_id}.wav")
@@ -208,7 +208,7 @@ class MELDFeatureExtractor(DatasetFeatureExtractor):
         split_dir = os.path.join(self.base_dir, split)
         audio_dir = os.path.join(split_dir, 'audio')
         video_dir = os.path.join(split_dir, 'video')
-        label_file = os.path.join(split_dir, 'label.csv')
+        label_file = os.path.join(split_dir, 'labels.csv')
 
         print(f"标签文件: {label_file}")
         print(f"音频目录: {audio_dir}")
@@ -222,9 +222,9 @@ class MELDFeatureExtractor(DatasetFeatureExtractor):
         emotion_data = {emotion: [] for emotion in self.emotion_mapping.keys()}
 
         # 处理每个样本
-        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {split} 特征"):
+        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {split} 特征", ncols=80):
             file_id = row['file_id']  # 例如: dia0_utt0
-            text = row['text']
+            text = row['utterance']
             emotion = row['emotion'].lower()
 
             # 文件路径（直接在 audio/video 目录下）
