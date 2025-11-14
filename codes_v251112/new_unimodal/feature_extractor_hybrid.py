@@ -427,7 +427,7 @@ class HybridFeatureExtractor:
 
         all_features = []
 
-        for audio_path in tqdm(audio_paths, desc="收集音频特征"):
+        for audio_path in tqdm(audio_paths, desc="收集音频特征", ncols=80):
             try:
                 # 加载音频
                 waveform, sr = librosa.load(audio_path, sr=self.sample_rate)

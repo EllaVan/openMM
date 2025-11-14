@@ -12,7 +12,7 @@
 
   "audio": {
     "model_name": "facebook/hubert-base-ls960",
-    "model_path": "media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
+    "model_path": "/media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
     "sample_rate": 16000,
     "max_duration": 30.0,
     "output_dim": 768,

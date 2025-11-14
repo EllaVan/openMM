@@ -25,7 +25,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from codes_v251112.new_unimodal.feature_extractor_hybrid import HybridFeatureExtractor
+from feature_extractor_hybrid import HybridFeatureExtractor
 
 # 配置日志
 logging.basicConfig(
@@ -200,11 +200,11 @@ def extract_mosei_hybrid(
     success_count = 0
     fail_count = 0
 
-    for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征"):
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征", ncols=80):
         video_id = row['video_id']
         clip_id = str(row['clip_id'])
         text = row['text']
-        emotion = row['emotion'].lower()
+        emotion = row['voted_emotion'].lower()
 
         # 文件路径
         audio_path = os.path.join(audio_dir, video_id, f"{clip_id}.wav")
@@ -293,7 +293,7 @@ def train_audio_pca_model_meld(
     for split in ['train', 'dev', 'test']:
         split_dir = os.path.join(base_dir, split)
         audio_dir = os.path.join(split_dir, 'audio')
-        label_file = os.path.join(split_dir, 'label.csv')
+        label_file = os.path.join(split_dir, 'labels.csv')
 
         if not os.path.exists(label_file):
             logger.warning(f"标签文件不存在: {label_file}")
@@ -426,7 +426,7 @@ def extract_meld_hybrid(
         success_count = 0
         fail_count = 0
 
-        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {current_split} 特征"):
+        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {current_split} 特征", ncols=80):
             file_id = row['file_id']  # dia0_utt0
             text = row['text']
             emotion = row['emotion'].lower()

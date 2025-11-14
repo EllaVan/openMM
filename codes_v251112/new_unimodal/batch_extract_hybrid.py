@@ -20,7 +20,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from new_unimodal.feature_extractor_hybrid import HybridFeatureExtractor
+from feature_extractor_hybrid import HybridFeatureExtractor
 
 # 配置日志
 logging.basicConfig(
