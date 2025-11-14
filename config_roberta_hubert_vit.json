@@ -1,0 +1,26 @@
+{
+  "description": "RoBERTa + HuBERT + ViT-16 配置",
+  "text": {
+    "model": "roberta-base",
+    "enabled": true,
+    "max_length": 512
+  },
+  "audio": {
+    "model": "hubert",
+    "model_name": "facebook/hubert-base-ls960",
+    "sample_rate": 16000,
+    "enabled": true
+  },
+  "video": {
+    "model": "vit",
+    "model_name": "google/vit-base-patch16-224",
+    "fps": 25,
+    "enabled": true,
+    "feature_mode": "cls"
+  },
+  "alignment": {
+    "method": "timestamp_matching",
+    "enabled": true,
+    "reference": "audio"
+  }
+}

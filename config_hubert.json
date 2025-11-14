@@ -1,0 +1,26 @@
+{
+  "description": "HuBERT audio feature extraction configuration",
+  "text": {
+    "model": "bert-base-uncased",
+    "enabled": true,
+    "max_length": 512
+  },
+  "audio": {
+    "model": "hubert",
+    "model_name": "facebook/hubert-base-ls960",
+    "sample_rate": 16000,
+    "enabled": true
+  },
+  "video": {
+    "model": "mediapipe",
+    "fps": 25,
+    "enabled": true,
+    "max_num_faces": 1,
+    "min_detection_confidence": 0.5
+  },
+  "alignment": {
+    "method": "interpolation",
+    "enabled": true,
+    "reference": "audio"
+  }
+}

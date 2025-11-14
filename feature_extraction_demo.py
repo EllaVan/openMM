@@ -5,10 +5,10 @@
 参考: https://github.com/thuiar/MMSA-FET
 
 主要功能:
-1. 文本特征提取 (BERT)
-2. 音频特征提取 (Wav2vec2, Librosa)
-3. 视频特征提取 (OpenFace, MediaPipe)
-4. 时间步对齐 (使用 Wav2vec CTC Aligner)
+1. 文本特征提取 (BERT, RoBERTa)
+2. 音频特征提取 (Wav2vec2, HuBERT, Librosa)
+3. 视频特征提取 (OpenFace, MediaPipe, ViT)
+4. 时间步对齐 (使用音频时间戳作为基准)
 """
 
 import os
@@ -75,32 +75,48 @@ class MultimodalFeatureExtractor:
             self._init_video_extractor()
 
     def _init_text_extractor(self):
-        """初始化文本特征提取器 (BERT)"""
+        """初始化文本特征提取器 (BERT/RoBERTa)"""
         try:
-            from transformers import BertTokenizer, BertModel
+            from transformers import AutoTokenizer, AutoModel
 
             model_name = self.config['text']['model']
-            self.text_tokenizer = BertTokenizer.from_pretrained(model_name)
-            self.text_model = BertModel.from_pretrained(model_name).to(self.device)
+
+            # 支持 BERT, RoBERTa 等所有 HuggingFace 模型
+            self.text_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.text_model = AutoModel.from_pretrained(model_name).to(self.device)
             self.text_model.eval()
-            print(f"✓ 文本提取器已加载: {model_name}")
+
+            # 检测模型类型
+            model_type = self.text_model.config.model_type
+            print(f"✓ 文本提取器已加载: {model_name} (类型: {model_type})")
         except ImportError:
             print("⚠ transformers 未安装，文本特征提取将被禁用")
             self.config['text']['enabled'] = False
 
     def _init_audio_extractor(self):
-        """初始化音频特征提取器"""
+        """初始化音频特征提取器 (Wav2vec2/HuBERT/Librosa)"""
         audio_model = self.config['audio']['model']
 
-        if audio_model == 'wav2vec2':
+        if audio_model in ['wav2vec2', 'hubert']:
             try:
-                from transformers import Wav2Vec2Processor, Wav2Vec2Model
+                from transformers import AutoProcessor, AutoModel
 
-                model_name = "facebook/wav2vec2-base-960h"
-                self.audio_processor = Wav2Vec2Processor.from_pretrained(model_name)
-                self.audio_model = Wav2Vec2Model.from_pretrained(model_name).to(self.device)
+                # 获取模型名称，如果配置中有指定则使用，否则使用默认
+                if 'model_name' in self.config['audio']:
+                    model_name = self.config['audio']['model_name']
+                else:
+                    # 默认模型
+                    if audio_model == 'wav2vec2':
+                        model_name = "facebook/wav2vec2-base-960h"
+                    else:  # hubert
+                        model_name = "facebook/hubert-base-ls960"
+
+                self.audio_processor = AutoProcessor.from_pretrained(model_name)
+                self.audio_model = AutoModel.from_pretrained(model_name).to(self.device)
                 self.audio_model.eval()
-                print(f"✓ 音频提取器已加载: Wav2vec2")
+
+                model_type = self.audio_model.config.model_type
+                print(f"✓ 音频提取器已加载: {model_name} (类型: {model_type})")
             except ImportError:
                 print("⚠ transformers 未安装，使用 librosa 作为备选")
                 self.config['audio']['model'] = 'librosa'
@@ -109,7 +125,7 @@ class MultimodalFeatureExtractor:
             print("✓ 音频提取器已加载: Librosa")
 
     def _init_video_extractor(self):
-        """初始化视频特征提取器"""
+        """初始化视频特征提取器 (OpenFace/MediaPipe/ViT)"""
         video_model = self.config['video']['model']
 
         if video_model == 'openface':
@@ -128,6 +144,28 @@ class MultimodalFeatureExtractor:
                 print("✓ 视频提取器已加载: MediaPipe")
             except ImportError:
                 print("⚠ mediapipe 未安装，视频特征提取将被禁用")
+                self.config['video']['enabled'] = False
+
+        elif video_model == 'vit':
+            try:
+                from transformers import AutoImageProcessor, AutoModel
+
+                # 获取模型名称
+                if 'model_name' in self.config['video']:
+                    model_name = self.config['video']['model_name']
+                else:
+                    model_name = "google/vit-base-patch16-224"  # 默认 ViT-16
+
+                self.video_processor = AutoImageProcessor.from_pretrained(model_name)
+                self.video_model = AutoModel.from_pretrained(model_name).to(self.device)
+                self.video_model.eval()
+
+                # 获取特征提取模式 (cls 或 pooled)
+                self.vit_feature_mode = self.config['video'].get('feature_mode', 'cls')
+
+                print(f"✓ 视频提取器已加载: {model_name} (模式: {self.vit_feature_mode})")
+            except ImportError:
+                print("⚠ transformers 未安装，视频特征提取将被禁用")
                 self.config['video']['enabled'] = False
 
     def extract_text_features(self, text_file: str) -> Dict:
@@ -190,8 +228,8 @@ class MultimodalFeatureExtractor:
 
         audio_model = self.config['audio']['model']
 
-        if audio_model == 'wav2vec2':
-            # Wav2vec2 特征提取
+        if audio_model in ['wav2vec2', 'hubert']:
+            # Wav2vec2/HuBERT 特征提取（两者架构相同）
             with torch.no_grad():
                 inputs = self.audio_processor(
                     audio,
@@ -200,7 +238,7 @@ class MultimodalFeatureExtractor:
                 ).to(self.device)
 
                 outputs = self.audio_model(**inputs)
-                features = outputs.last_hidden_state.cpu()  # [1, time_steps, 768]
+                features = outputs.last_hidden_state.cpu()  # [1, time_steps, hidden_size]
 
             # 计算时间戳（每帧对应的时间）
             time_steps = features.shape[1]
@@ -294,6 +332,37 @@ class MultimodalFeatureExtractor:
                 # 这里提供占位符
                 # 实际使用时需要调用 OpenFace 工具
                 frames_features.append([0] * 136)  # OpenFace 68个关键点 * 2维
+
+            elif video_model == 'vit':
+                # 使用 ViT 提取图像特征
+                from PIL import Image
+                import cv2
+
+                # 将 OpenCV 帧转换为 PIL 图像
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                pil_image = Image.fromarray(frame_rgb)
+
+                # 处理图像
+                inputs = self.video_processor(images=pil_image, return_tensors="pt").to(self.device)
+
+                with torch.no_grad():
+                    outputs = self.video_model(**inputs)
+
+                    # 根据配置的特征模式提取特征
+                    if self.vit_feature_mode == 'cls':
+                        # 使用 [CLS] token (第一个 token)
+                        frame_features = outputs.last_hidden_state[0, 0, :].cpu().numpy()
+                    elif self.vit_feature_mode == 'pooled':
+                        # 使用 pooler_output (如果模型支持)
+                        if hasattr(outputs, 'pooler_output') and outputs.pooler_output is not None:
+                            frame_features = outputs.pooler_output[0].cpu().numpy()
+                        else:
+                            # 如果没有 pooler，则对所有 token 进行平均池化
+                            frame_features = outputs.last_hidden_state[0].mean(dim=0).cpu().numpy()
+                    else:  # 'mean' - 对所有 token 平均
+                        frame_features = outputs.last_hidden_state[0].mean(dim=0).cpu().numpy()
+
+                frames_features.append(frame_features.tolist())
 
             frame_count += 1
 
