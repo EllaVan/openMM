@@ -1,0 +1,33 @@
+{
+  "description": "ViT-16 video feature extraction configuration",
+  "text": {
+    "model": "bert-base-uncased",
+    "enabled": true,
+    "max_length": 512
+  },
+  "audio": {
+    "model": "wav2vec2",
+    "model_name": "facebook/wav2vec2-base-960h",
+    "sample_rate": 16000,
+    "enabled": true
+  },
+  "video": {
+    "model": "vit",
+    "model_name": "google/vit-base-patch16-224",
+    "fps": 25,
+    "enabled": true,
+    "feature_mode": "cls"
+  },
+  "alignment": {
+    "method": "timestamp_matching",
+    "enabled": true,
+    "reference": "audio"
+  },
+  "notes": {
+    "feature_mode_options": [
+      "cls - Use [CLS] token as global frame feature (recommended)",
+      "pooled - Use pooler output if available",
+      "mean - Average all patch tokens"
+    ]
+  }
+}
