@@ -490,7 +490,7 @@ def main():
     parser.add_argument(
         '--config',
         type=str,
-        default='new_unimodal/config_hybrid.json',
+        default='config_hybrid.json',
         help='配置文件路径'
     )
     parser.add_argument(
