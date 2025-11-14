@@ -226,6 +226,7 @@ mkdir -p "$OUTPUT_DIR"
 # 4. 开始提取（自动训练 PCA）
 echo "开始混合特征提取..."
 python unimodal_features/batch_extract_hybrid.py \
+  --dataset mosei \
   --config "$CONFIG" \
   --base_dir "$BASE_DIR" \
   --label_file "$LABEL_FILE" \
@@ -236,9 +237,52 @@ python unimodal_features/batch_extract_hybrid.py \
 echo "完成！"
 ```
 
+## 完整示例：MELD 数据集
+
+```bash
+#!/bin/bash
+
+# 1. 配置路径
+CONFIG="unimodal_features/config_hybrid_pca.json"
+BASE_DIR="/path/to/MELD"
+OUTPUT_DIR="./output/meld_features_hybrid"
+
+# 2. 检查配置
+echo "检查配置文件..."
+if [ ! -f "$CONFIG" ]; then
+    echo "错误: 配置文件不存在: $CONFIG"
+    exit 1
+fi
+
+# 3. 创建输出目录
+mkdir -p "$OUTPUT_DIR"
+
+# 4. 开始提取（自动训练 PCA，处理所有划分）
+echo "开始混合特征提取..."
+python unimodal_features/batch_extract_hybrid.py \
+  --dataset meld \
+  --config "$CONFIG" \
+  --base_dir "$BASE_DIR" \
+  --output_dir "$OUTPUT_DIR" \
+  --split all \
+  --train_pca \
+  --pca_training_samples 1000
+
+echo "完成！"
+```
+
+**MELD 数据集说明**:
+- 使用 `--dataset meld` 指定数据集
+- 不需要 `--label_file`（MELD 每个划分有独立的 label.csv）
+- 使用 `--split` 指定处理哪个划分：
+  - `--split all`: 处理 train, dev, test 全部（推荐）
+  - `--split train`: 只处理训练集
+  - `--split dev`: 只处理验证集
+  - `--split test`: 只处理测试集
+
 ## 输出结果
 
-### 文件结构
+### MOSEI 文件结构
 
 ```
 output/mosei_features_hybrid/
@@ -250,6 +294,23 @@ output/mosei_features_hybrid/
 ├── MOSEIsurpriselabel4.pkl
 ├── MOSEIfearlabel5.pkl
 └── MOSEIneutrallabel6.pkl
+```
+
+### MELD 文件结构
+
+```
+output/meld_features_hybrid/
+├── audio_pca_model.pkl           # PCA 模型（可复用）
+├── MELD_trainhappylabel0.pkl     # 训练集特征
+├── MELD_trainsadlabel1.pkl
+├── MELD_trainangerlabel2.pkl
+├── ...
+├── MELD_devhappylabel0.pkl       # 验证集特征
+├── MELD_devsadlabel1.pkl
+├── ...
+├── MELD_testhappylabel0.pkl      # 测试集特征
+├── MELD_testsadlabel1.pkl
+└── ...
 ```
 
 ### 特征维度
@@ -444,12 +505,26 @@ export HF_ENDPOINT=https://hf-mirror.com
 
 ### 使用命令
 
+**MOSEI 数据集**:
 ```bash
 python unimodal_features/batch_extract_hybrid.py \
+  --dataset mosei \
   --config unimodal_features/config_hybrid_pca.json \
   --base_dir /path/to/MOSEI \
-  --label_file /path/to/label.csv \
+  --label_file /path/to/MOSEI/label/label.csv \
   --output_dir ./output/mosei_features_hybrid \
+  --train_pca \
+  --pca_training_samples 1000
+```
+
+**MELD 数据集**:
+```bash
+python unimodal_features/batch_extract_hybrid.py \
+  --dataset meld \
+  --config unimodal_features/config_hybrid_pca.json \
+  --base_dir /path/to/MELD \
+  --output_dir ./output/meld_features_hybrid \
+  --split all \
   --train_pca \
   --pca_training_samples 1000
 ```
