@@ -1,0 +1,69 @@
+{
+  "description": "特征提取完整配置 - 自动化运行",
+  "version": "1.0",
+
+  "dataset": {
+    "name": "mosei",
+    "options": ["mosei", "meld"],
+    "description": "选择要提取的数据集"
+  },
+
+  "mosei": {
+    "base_dir": "/path/to/MOSEI",
+    "label_file": "/path/to/MOSEI/label/label.csv",
+    "output_dir": "./output/mosei_features_5fps",
+    "enabled": true,
+    "description": "MOSEI 数据集配置"
+  },
+
+  "meld": {
+    "base_dir": "/path/to/MELD",
+    "output_dir": "./output/meld_features_5fps",
+    "split": "all",
+    "enabled": false,
+    "description": "MELD 数据集配置 (split: train/dev/test/all)"
+  },
+
+  "models": {
+    "text": {
+      "model_name": "microsoft/MiniLM-L6-v2",
+      "model_path": "/media/sda/wf/openMM/materials_task/all-MiniLM-L6-v2",
+      "max_length": 512,
+      "output_dim": 384
+    },
+    "audio": {
+      "model_name": "facebook/hubert-base-ls960",
+      "model_path": "media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
+      "sample_rate": 16000,
+      "output_dim": 768,
+      "pca_reduction": {
+        "enabled": true,
+        "target_dim": 384,
+        "model_path": null
+      }
+    },
+    "video": {
+      "model_name": "google/vit-small-patch16-224",
+      "model_path": "/media/sda/wf/openMM/materials_task/vit_small_patch16_224.dino",
+      "output_dim": 384
+    }
+  },
+
+  "extraction": {
+    "sampling_rate_fps": 5,
+    "max_frames": 300,
+    "video_batch_size": 64,
+    "train_pca": true,
+    "pca_training_samples": 1000,
+    "pca_model_path": null,
+    "description": "提取参数：5帧/秒采样，最多300帧，自动训练PCA"
+  },
+
+  "performance": {
+    "expected_speed_per_sample": "1.5-2秒",
+    "total_time_mosei": "9-12小时 (22856样本)",
+    "total_time_meld": "5-7小时 (13708样本)",
+    "file_size_mosei": "约15GB (5fps)",
+    "file_size_meld": "约9GB (5fps)"
+  }
+}
