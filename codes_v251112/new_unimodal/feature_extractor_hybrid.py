@@ -387,7 +387,7 @@ class HybridFeatureExtractor:
 
         # 降采样音频特征（加速优化：减少整体帧数）
         # HuBERT 输出约 50 帧/秒，降采样可同时减少音频和视频处理量
-        audio_downsample_factor = 2  # 降采样倍数：2=减少50%, 3=减少67%
+        audio_downsample_factor = 5  # 降采样倍数：5=10帧/秒, 2=25帧/秒, 3=17帧/秒
         if audio_downsample_factor > 1:
             indices = np.arange(0, num_frames, audio_downsample_factor)
             audio_features = audio_features[indices]
