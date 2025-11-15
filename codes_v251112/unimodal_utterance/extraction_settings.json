@@ -3,8 +3,8 @@
   "version": "2.0",
 
   "mosei": {
-    "base_dir": "/path/to/MOSEI",
-    "label_file": "/path/to/MOSEI/label/label.csv",
+    "base_dir": "/media/sda/wf/openMM/Datasets/MOSEI",
+    "label_file": "/media/sda/wf/openMM/Datasets/MOSEI/merged_label_new.csv",
     "output_dir": "./output/mosei_utterance_features",
     "enabled": true,
     "description": "MOSEI 数据集配置，设置 enabled=true 启用提取",
@@ -17,7 +17,7 @@
   },
 
   "meld": {
-    "base_dir": "/path/to/MELD",
+    "base_dir": "/media/sda/wf/openMM/Datasets/MELD/organized",
     "output_dir": "./output/meld_utterance_features",
     "split": "all",
     "enabled": false,
@@ -35,21 +35,21 @@
   "models": {
     "text": {
       "model_name": "roberta-base",
-      "model_path": "/path/to/roberta-base",
+      "model_path": "/media/sda/wf/openMM/materials_task/roberta-base",
       "max_length": 512,
       "output_dim": 768,
       "description": "RoBERTa-base: 使用 [CLS] token 作为 utterance 表示"
     },
     "audio": {
       "model_name": "facebook/hubert-base-ls960",
-      "model_path": "/path/to/hubert-base-ls960",
+      "model_path": "/media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
       "sample_rate": 16000,
       "output_dim": 768,
       "description": "HuBERT-base: Mean pooling over all time steps"
     },
     "video": {
       "model_name": "google/vit-base-patch16-224",
-      "model_path": "/path/to/vit-base-patch16-224",
+      "model_path": "/media/sda/wf/openMM/materials_task/vit-base-patch16-224",
       "output_dim": 768,
       "description": "ViT-Base: Mean pooling over sampled frames"
     }

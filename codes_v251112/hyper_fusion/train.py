@@ -15,8 +15,8 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from hyper_fusion.dataloader import create_dataloaders
-from hyper_fusion.network import HypergraphEmotionClassifier
+from dataloader import create_dataloaders
+from network import HypergraphEmotionClassifier
 
 
 # 配置日志

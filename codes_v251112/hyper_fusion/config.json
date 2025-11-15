@@ -23,7 +23,7 @@
   },
   "data": {
     "dataset": "MOSEI",
-    "data_dir": "./output/mosei_features",
+    "data_dir": "./output/mosei_features_5fps/",
     "emotion": "happy",
     "label_id": 0,
     "train_ratio": 0.7

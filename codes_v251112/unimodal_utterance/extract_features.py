@@ -19,23 +19,26 @@ from collections import defaultdict
 
 from feature_extractor import create_extractor
 
+import sys
+# 添加父目录到路径
+cur_file_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(cur_file_dir, 'logs')
+print('日志目录:', log_dir)
+os.makedirs(log_dir, exist_ok=True)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(f'extraction_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+        logging.FileHandler(f'{log_dir}/extraction_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
     ]
 )
 logger = logging.getLogger(__name__)
 
-
-def load_config(config_path='extraction_settings.json'):
-    """加载配置文件"""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_file = os.path.join(script_dir, config_path)
-
+def load_config(config_file):
     if not os.path.exists(config_file):
         raise FileNotFoundError(f"配置文件不存在: {config_file}")
 
@@ -43,6 +46,18 @@ def load_config(config_path='extraction_settings.json'):
         config = json.load(f)
 
     return config
+
+
+emotion_standard_mapping = {
+    'joy': 'joy',
+    'happy': 'happy', 'happiness': 'happy',
+    'sadness': 'sad', 'sad': 'sad',
+    'anger': 'anger', 'angry': 'anger',
+    'surprise': 'surprise', 'surprised': 'surprise',
+    'disgust': 'disgust', 'disgusted': 'disgust',
+    'fear': 'fear', 'fearfull': 'fear',
+    'neutral': 'neutral', 
+}
 
 
 def extract_mosei(config):
@@ -60,17 +75,21 @@ def extract_mosei(config):
     os.makedirs(output_dir, exist_ok=True)
 
     # 创建提取器
-    extractor = create_extractor('extraction_settings.json')
+    extractor = create_extractor(config_file)
 
     # 读取标签文件
     df = pd.read_csv(label_file)
     logger.info(f"数据集总样本数: {len(df)}")
 
-    # 情感映射
+    # 情感映射（支持 angry/anger, surprise/surprised 等变体）
     emotion_mapping = {
-        'happy': 0, 'sad': 1, 'angry': 2,
-        'surprise': 3, 'disgust': 4, 'fear': 5, 'neutral': 6
-    }
+        'happy': 0, 
+        'sad': 1, 
+        'anger': 2, 
+        'surprise': 3, 
+        'disgust': 4, 
+        'fear': 5, 
+        'neutral': 6}
 
     # 按情感分组存储
     emotion_data = defaultdict(list)
@@ -78,10 +97,11 @@ def extract_mosei(config):
     fail_count = 0
 
     # 提取特征
-    for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征"):
+    for index, row in tqdm(df.iterrows(), total=len(df), desc="提取特征", ncols=80):
         video_id = row['video_id']
         clip_id = str(row['clip_id'])
-        emotion = row['emotion'].lower()
+        emotion = row['voted_emotion'].lower()
+        emotion = emotion_standard_mapping.get(emotion, emotion)
         text = row['text']
 
         # 文件路径
@@ -146,11 +166,11 @@ def extract_meld(config):
     os.makedirs(output_dir, exist_ok=True)
 
     # 创建提取器
-    extractor = create_extractor('extraction_settings.json')
+    extractor = create_extractor(config_file)
 
     # 情感映射
     emotion_mapping = {
-        'happy': 0, 'sad': 1, 'angry': 2,
+        'joy': 0, 'sadness': 1, 'anger': 2,
         'surprise': 3, 'disgust': 4, 'fear': 5, 'neutral': 6
     }
 
@@ -165,7 +185,7 @@ def extract_meld(config):
     for split in splits:
         logger.info(f"\n处理 {split} split...")
         split_dir = os.path.join(base_dir, split)
-        label_file = os.path.join(split_dir, 'label.csv')
+        label_file = os.path.join(split_dir, 'labels.csv')
 
         if not os.path.exists(label_file):
             logger.warning(f"标签文件不存在: {label_file}")
@@ -180,9 +200,10 @@ def extract_meld(config):
         fail_count = 0
 
         # 提取特征
-        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {split}"):
+        for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {split}", ncols=80):
             video_name = row['video_name']
             emotion = row['emotion'].lower()
+            emotion = emotion_standard_mapping.get(emotion, emotion)
             text = row['text']
 
             # 文件路径
@@ -236,7 +257,12 @@ def extract_meld(config):
 
 def main():
     """主函数 - 完全自动化"""
-    config = load_config()
+    """加载配置文件"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    global config_file
+    config_file = os.path.join(script_dir, 'extraction_settings.json')
+    print('配置文件路径:', config_file)    
+    config = load_config(config_file)
 
     logger.info("\n" + "="*60)
     logger.info("Utterance-Level 特征提取系统")
