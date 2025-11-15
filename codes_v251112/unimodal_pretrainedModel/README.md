@@ -108,15 +108,21 @@ output/meld_features_5fps/
 
 ```python
 {
-    'audio_features': array([T, 384]),   # 音频特征
-    'text_features': array([T, 384]),    # 文本特征
-    'video_features': array([T, 384]),   # 视频特征
+    'audio_features': array([384]),      # 音频特征 (utterance-level)
+    'text_features': array([384]),       # 文本特征 (utterance-level)
+    'video_features': array([384]),      # 视频特征 (utterance-level)
     'label': int,                         # 情感标签 ID (0-6)
     'emotion': str,                       # 情感名称
-    'sample_id': str,                     # 样本 ID
-    'num_frames': int                     # 帧数
+    'sample_id': str                      # 样本 ID
 }
 ```
+
+**特征说明**：
+- 所有模态都是 **utterance-level**（话语级别）特征
+- 每个样本都是固定的 384 维向量
+- **文本**：使用 BERT [CLS] token 表示
+- **音频**：对所有时间步进行 mean pooling
+- **视频**：对所有采样帧进行 mean pooling
 
 ## 切换数据集
 
@@ -181,25 +187,32 @@ output/meld_features_5fps/
 
 ## 技术细节
 
-### 采样策略
+### 特征聚合策略（Utterance-Level）
 
 ```
-HuBERT 原始输出：约 50 帧/秒
-降采样因子：10 (50 ÷ 10 = 5 fps)
+所有模态都使用 utterance-level 表示：
 
-示例（15秒视频）：
-- HuBERT 提取：750 帧
-- 降采样后：75 帧
-- 视频也处理：75 帧
-- 时间覆盖：完整 15 秒（无截断）
+文本（MiniLM-L6）：
+- 输入: "I love this movie" → [CLS] token embedding
+- 输出: [384] 维向量（固定）
+
+音频（HuBERT + PCA）：
+- 输入: 音频文件 → HuBERT提取 → [time_steps, 768]
+- PCA降维: [time_steps, 384]
+- Mean Pooling: [384] 维向量（固定）
+
+视频（ViT-small）：
+- 输入: 视频文件 → 5fps采样 → [num_frames, 384]
+- Mean Pooling: [384] 维向量（固定）
 ```
 
 ### 优化说明
 
-1. **音频降采样**：HuBERT 输出降采样到 5 fps
-2. **视频对齐**：视频根据音频 timestamps 提取，自动同步到 5 fps
-3. **无信息丢失**：降低密度而非截断，覆盖完整时长
-4. **模态对齐**：文本、音频、视频时间完全对齐
+1. **文本特征**：使用 [CLS] token，代表整句话的语义
+2. **音频特征**：对所有时间步做平均池化，捕获整体声学特征
+3. **视频特征**：5fps采样后平均池化，捕获整体视觉信息
+4. **统一维度**：所有模态都是固定的 384 维向量，便于融合
+5. **计算高效**：utterance-level 比 frame-level 更快，内存占用更小
 
 ## 故障排除
 

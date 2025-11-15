@@ -208,16 +208,15 @@ class HybridFeatureExtractor:
             gc.collect()
             torch.cuda.empty_cache()
 
-    def extract_text_features(self, text: str, target_frames: int) -> torch.Tensor:
+    def extract_text_features(self, text: str) -> torch.Tensor:
         """
-        提取文本特征（MiniLM-L6，384 维）
+        提取文本特征（MiniLM-L6，384 维）- Utterance级别
 
         Args:
             text: 输入文本
-            target_frames: 目标帧数
 
         Returns:
-            text_features: [target_frames, 384]
+            text_features: [384] - 使用 [CLS] token 作为句子表示
         """
         with torch.no_grad():
             inputs = self.text_tokenizer(
@@ -229,42 +228,25 @@ class HybridFeatureExtractor:
             ).to(self.device)
 
             outputs = self.text_model(**inputs)
-            features = outputs.last_hidden_state[0]  # [seq_len, 384]
-
-            # 线性插值到目标帧数
-            if features.shape[0] != target_frames:
-                features_t = features.T.unsqueeze(0)  # [1, 384, seq_len]
-                aligned = torch.nn.functional.interpolate(
-                    features_t,
-                    size=target_frames,
-                    mode='linear',
-                    align_corners=False
-                )
-                features = aligned.squeeze(0).T  # [target_frames, 384]
+            # 使用 [CLS] token (第一个位置) 作为句子级别表示
+            features = outputs.last_hidden_state[0, 0, :]  # [384]
 
         return features.cpu()
 
-    def extract_audio_features(self, audio_path: str) -> Tuple[torch.Tensor, np.ndarray]:
+    def extract_audio_features(self, audio_path: str) -> torch.Tensor:
         """
-        提取音频特征（HuBERT 768 维 → PCA 384 维）
+        提取音频特征（HuBERT 768 维 → PCA 384 维）- Utterance级别
 
         Args:
             audio_path: 音频文件路径
 
         Returns:
-            audio_features: [time_steps, 384] (如果启用 PCA) 或 [time_steps, 768]
-            timestamps: 时间戳数组
+            audio_features: [384] - 使用 mean pooling 聚合所有时间步
         """
         import librosa
 
         # 加载音频
         waveform, sr = librosa.load(audio_path, sr=self.sample_rate)
-
-        # 可选：限制音频最大时长（会丢失后半段信息，不推荐）
-        # 更好的方案是在 extract_multimodal_features 中对特征降采样
-        # max_samples = int(self.max_audio_duration * sr)
-        # if len(waveform) > max_samples:
-        #     waveform = waveform[:max_samples]
 
         # HuBERT 推理
         with torch.no_grad():
@@ -286,58 +268,55 @@ class HybridFeatureExtractor:
                 )
             features = self.audio_pca.transform(features)  # [time_steps, 384]
 
-        features = torch.from_numpy(features)
+        # Mean pooling: 对所有时间步取平均
+        features = np.mean(features, axis=0)  # [384]
 
-        # 计算时间戳
-        num_frames = features.shape[0]
-        duration = len(waveform) / sr
-        timestamps = np.linspace(0, duration, num_frames)
+        return torch.from_numpy(features).float()
 
-        return features, timestamps
-
-    def extract_video_features(self, video_path: str, timestamps: np.ndarray) -> torch.Tensor:
+    def extract_video_features(self, video_path: str, sample_rate: int = 5) -> torch.Tensor:
         """
-        提取视频特征（ViT-small，384 维）
+        提取视频特征（ViT-small，384 维）- Utterance级别
 
         Args:
             video_path: 视频文件路径
-            timestamps: 音频时间戳（用于对齐）
+            sample_rate: 采样率（fps），用于抽取关键帧
 
         Returns:
-            video_features: [num_frames, 384]
+            video_features: [384] - 使用 mean pooling 聚合所有帧
         """
         import cv2
 
-        # 限制最大帧数
-        if len(timestamps) > self.max_frames:
-            indices = np.linspace(0, len(timestamps) - 1, self.max_frames, dtype=int)
-            timestamps = timestamps[indices]
-
-        # 打开视频
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS) or self.video_fps
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         if total_frames == 0:
             cap.release()
-            raise ValueError(f"视频文件无法读取或为空: {video_path}")
+            return torch.zeros(384)  # 如果视频为空，返回零向量
 
-        # 提取关键帧
+        # 计算采样间隔
+        sample_interval = max(1, int(fps / sample_rate))
+
+        # 抽取关键帧
         frames = []
-        for timestamp in timestamps:
-            frame_idx = int(timestamp * fps)
-            frame_idx = min(frame_idx, total_frames - 1)
+        frame_indices = range(0, total_frames, sample_interval)
 
+        for frame_idx in frame_indices:
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
 
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 frames.append(frame)
-            else:
-                frames.append(np.zeros((224, 224, 3), dtype=np.uint8))
+
+            # 限制最大帧数
+            if len(frames) >= self.max_frames:
+                break
 
         cap.release()
+
+        if len(frames) == 0:
+            return torch.zeros(384)  # 如果没有帧，返回零向量
 
         # 分批处理帧
         all_features = []
@@ -362,6 +341,10 @@ class HybridFeatureExtractor:
             self._cleanup_memory()
 
         features = torch.cat(all_features, dim=0)  # [num_frames, 384]
+
+        # Mean pooling: 对所有帧取平均
+        features = features.mean(dim=0)  # [384]
+
         return features
 
     def extract_multimodal_features(
@@ -371,7 +354,7 @@ class HybridFeatureExtractor:
         video_path: str
     ) -> Dict:
         """
-        提取对齐的多模态特征（全部 384 维）
+        提取多模态特征（全部 384 维）- Utterance级别
 
         Args:
             text: 文本内容
@@ -379,40 +362,21 @@ class HybridFeatureExtractor:
             video_path: 视频文件路径
 
         Returns:
-            features: 包含对齐特征的字典
+            features: 包含特征的字典，每个模态都是 [384] 维向量
         """
-        # 1. 提取音频特征（作为基准）
-        audio_features, timestamps = self.extract_audio_features(audio_path)
-        num_frames = len(timestamps)
+        # 1. 提取文本特征
+        text_features = self.extract_text_features(text)
 
-        # 降采样音频特征（加速优化：减少整体帧数）
-        # HuBERT 输出约 50 帧/秒，降采样可同时减少音频和视频处理量
-        audio_downsample_factor = 10  # 降采样倍数：10=5帧/秒, 5=10帧/秒, 2=25帧/秒
-        if audio_downsample_factor > 1:
-            indices = np.arange(0, num_frames, audio_downsample_factor)
-            audio_features = audio_features[indices]
-            timestamps = timestamps[indices]
-            num_frames = len(timestamps)
+        # 2. 提取音频特征（mean pooling）
+        audio_features = self.extract_audio_features(audio_path)
 
-        # 检查帧数
-        if num_frames > self.max_frames:
-            indices = np.linspace(0, num_frames - 1, self.max_frames, dtype=int)
-            audio_features = audio_features[indices]
-            timestamps = timestamps[indices]
-            num_frames = self.max_frames
-
-        # 2. 提取文本特征（对齐到音频帧数）
-        text_features = self.extract_text_features(text, target_frames=num_frames)
-
-        # 3. 提取视频特征（对齐到音频时间戳）
-        video_features = self.extract_video_features(video_path, timestamps)
+        # 3. 提取视频特征（mean pooling）
+        video_features = self.extract_video_features(video_path, sample_rate=5)
 
         return {
-            'audio_features': audio_features,      # [T, 384]
-            'text_features': text_features,        # [T, 384]
-            'video_features': video_features,      # [T, 384]
-            'num_frames': num_frames,
-            'timestamps': timestamps
+            'audio_features': audio_features,      # [384]
+            'text_features': text_features,        # [384]
+            'video_features': video_features,      # [384]
         }
 
     def train_audio_pca(self, audio_paths: list, save_path: Optional[str] = None):
