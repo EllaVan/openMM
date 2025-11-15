@@ -68,21 +68,34 @@
       "expected_speed": "约1.5-2秒/样本",
       "total_time": "约9-12小时",
       "file_size": "约3-5MB (utterance-level)",
-      "feature_per_sample": "768×3 = 2304 维"
+      "per_modality": "text[768] + audio[768] + video[768]",
+      "total_concatenated": "2304 维（如果拼接三个模态）"
     },
     "meld": {
       "samples": 13708,
       "expected_speed": "约1.5-2秒/样本",
       "total_time": "约5-7小时",
       "file_size": "约2-3MB (utterance-level)",
-      "feature_per_sample": "768×3 = 2304 维"
+      "per_modality": "text[768] + audio[768] + video[768]",
+      "total_concatenated": "2304 维（如果拼接三个模态）"
     }
+  },
+
+  "output": {
+    "format": "分开存储，每个模态独立",
+    "structure": {
+      "text_features": "[768] - RoBERTa [CLS] token",
+      "audio_features": "[768] - HuBERT mean pooling",
+      "video_features": "[768] - ViT-Base mean pooling",
+      "label": "int (0-6)",
+      "emotion": "str (happy/sad/...)",
+      "sample_id": "str"
+    },
+    "note": "三个模态分开存储，使用时可以选择单模态或拼接多模态"
   },
 
   "usage": {
     "single_dataset": "设置一个数据集 enabled=true，另一个 enabled=false",
-    "run_command": "python extract_features.py",
-    "output_format": "每个样本: {'text': [768], 'audio': [768], 'video': [768]}",
-    "note": "所有模态都是 utterance-level 固定维度特征"
+    "run_command": "python extract_features.py"
   }
 }
