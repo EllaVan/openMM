@@ -15,9 +15,9 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
 
-from fusion.config_utils import load_config
-from fusion.dataloader import create_multi_emotion_dataloaders
-from fusion.sample_network import SampleHypergraphClassifier
+from config_utils import load_config
+from dataloader import create_multi_emotion_dataloaders
+from sample_network import SampleHypergraphClassifier
 
 
 # 配置日志
