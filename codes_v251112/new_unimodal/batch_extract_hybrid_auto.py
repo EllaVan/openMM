@@ -160,6 +160,11 @@ def extract_mosei_hybrid(
     # 初始化提取器
     extractor = HybridFeatureExtractor(config=config)
 
+    # 创建输出目录（在训练 PCA 之前）
+
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"输出目录已创建: {output_dir}\n")
+
     # 训练 PCA（如果需要）
     if train_pca and extractor.use_audio_pca and not extractor.audio_pca.is_fitted:
         pca_save_path = os.path.join(output_dir, 'audio_pca_model.pkl')

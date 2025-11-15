@@ -1,9 +1,6 @@
 Data/
 DataFeatures/
 Datasets/
-<<<<<<< HEAD
-!Datasets/prepare_data_meld.py
-=======
->>>>>>> 4fdd7da4792139237cdf149edc48eb9a5a6e7b30
 materials_task/
 referCodes/
+codes_v251112/output/
