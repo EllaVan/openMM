@@ -47,7 +47,7 @@
       "pca_reduction": {
         "enabled": true,
         "target_dim": 384,
-        "model_path":"/media/sda/wf/openMM/codes_v251112/output/mosei_features_5fps/audio_pca_model.pkl",
+        "model_path":null,
         "description": "PCA模型可在数据集间共享，第一个数据集训练，后续复用"
       }
     },
