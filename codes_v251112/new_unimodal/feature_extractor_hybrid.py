@@ -260,10 +260,11 @@ class HybridFeatureExtractor:
         # 加载音频
         waveform, sr = librosa.load(audio_path, sr=self.sample_rate)
 
-        # 限制音频最大时长（加速优化）
-        max_samples = int(self.max_audio_duration * sr)
-        if len(waveform) > max_samples:
-            waveform = waveform[:max_samples]
+        # 可选：限制音频最大时长（会丢失后半段信息，不推荐）
+        # 更好的方案是在 extract_multimodal_features 中对特征降采样
+        # max_samples = int(self.max_audio_duration * sr)
+        # if len(waveform) > max_samples:
+        #     waveform = waveform[:max_samples]
 
         # HuBERT 推理
         with torch.no_grad():
