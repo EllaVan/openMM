@@ -260,6 +260,11 @@ class HybridFeatureExtractor:
         # 加载音频
         waveform, sr = librosa.load(audio_path, sr=self.sample_rate)
 
+        # 限制音频最大时长（加速优化）
+        max_samples = int(self.max_audio_duration * sr)
+        if len(waveform) > max_samples:
+            waveform = waveform[:max_samples]
+
         # HuBERT 推理
         with torch.no_grad():
             inputs = self.audio_processor(
@@ -378,6 +383,15 @@ class HybridFeatureExtractor:
         # 1. 提取音频特征（作为基准）
         audio_features, timestamps = self.extract_audio_features(audio_path)
         num_frames = len(timestamps)
+
+        # 降采样音频特征（加速优化：减少整体帧数）
+        # HuBERT 输出约 50 帧/秒，降采样可同时减少音频和视频处理量
+        audio_downsample_factor = 2  # 降采样倍数：2=减少50%, 3=减少67%
+        if audio_downsample_factor > 1:
+            indices = np.arange(0, num_frames, audio_downsample_factor)
+            audio_features = audio_features[indices]
+            timestamps = timestamps[indices]
+            num_frames = len(timestamps)
 
         # 检查帧数
         if num_frames > self.max_frames:

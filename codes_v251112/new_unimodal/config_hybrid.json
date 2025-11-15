@@ -14,7 +14,7 @@
     "model_name": "facebook/hubert-base-ls960",
     "model_path": "media/sda/pingjm/MTCA/pretraining_model/HuBERT/hubert-base-ls960",
     "sample_rate": 16000,
-    "max_duration": 30.0,
+    "max_duration": 10.0,
     "output_dim": 768,
     "pca_reduction": {
       "enabled": true,
@@ -22,7 +22,7 @@
       "model_path": null,
       "description": "音频特征先提取 768 维，再用 PCA 降到 384 维"
     },
-    "description": "音频特征提取器（768 维 → PCA 384 维）"
+    "description": "音频特征提取器（768 维 → PCA 384 维）- 优化：max_duration从30降到10秒"
   },
 
   "video": {
