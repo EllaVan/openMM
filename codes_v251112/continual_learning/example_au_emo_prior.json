@@ -1,0 +1,83 @@
+{
+  "description": "Example AU-EMO Prior Matrix Template",
+  "note": "This is a template. Replace with your actual 23 AUs and psychology-based probabilities.",
+  "num_aus": 23,
+  "num_emotions": 6,
+
+  "au_names": [
+    "AU1_Inner_Brow_Raiser",
+    "AU2_Outer_Brow_Raiser",
+    "AU4_Brow_Lowerer",
+    "AU5_Upper_Lid_Raiser",
+    "AU6_Cheek_Raiser",
+    "AU7_Lid_Tightener",
+    "AU9_Nose_Wrinkler",
+    "AU10_Upper_Lip_Raiser",
+    "AU12_Lip_Corner_Puller",
+    "AU15_Lip_Corner_Depressor",
+    "AU17_Chin_Raiser",
+    "AU20_Lip_Stretcher",
+    "AU23_Lip_Tightener",
+    "AU24_Lip_Pressor",
+    "AU25_Lips_Part",
+    "AU26_Jaw_Drop",
+    "AU27_Mouth_Stretch",
+    "AU28_Lip_Suck",
+    "AU43_Eyes_Closed",
+    "AU45_Blink",
+    "AU51_Head_Turn_Left",
+    "AU52_Head_Turn_Right",
+    "AU53_Head_Up"
+  ],
+
+  "emotion_names": ["happy", "sad", "angry", "surprise", "disgust", "fear"],
+
+  "emotion_ids": {
+    "happy": 0,
+    "sad": 1,
+    "angry": 2,
+    "surprise": 3,
+    "disgust": 4,
+    "fear": 5
+  },
+
+  "prior_matrix": [
+    [0.15, 0.20, 0.10, 0.40, 0.05, 0.10],
+    [0.20, 0.15, 0.10, 0.50, 0.03, 0.02],
+    [0.05, 0.30, 0.60, 0.05, 0.50, 0.50],
+    [0.10, 0.05, 0.05, 0.70, 0.15, 0.60],
+    [0.80, 0.05, 0.05, 0.30, 0.02, 0.03],
+    [0.20, 0.05, 0.50, 0.20, 0.30, 0.10],
+    [0.02, 0.05, 0.30, 0.10, 0.80, 0.15],
+    [0.05, 0.10, 0.40, 0.15, 0.70, 0.10],
+    [0.90, 0.02, 0.05, 0.20, 0.03, 0.02],
+    [0.03, 0.80, 0.30, 0.05, 0.20, 0.40],
+    [0.05, 0.40, 0.50, 0.10, 0.30, 0.20],
+    [0.15, 0.10, 0.60, 0.30, 0.40, 0.70],
+    [0.10, 0.30, 0.70, 0.10, 0.40, 0.50],
+    [0.05, 0.20, 0.50, 0.05, 0.35, 0.30],
+    [0.30, 0.20, 0.40, 0.60, 0.25, 0.45],
+    [0.20, 0.15, 0.30, 0.80, 0.20, 0.50],
+    [0.15, 0.25, 0.60, 0.30, 0.50, 0.70],
+    [0.10, 0.35, 0.20, 0.10, 0.15, 0.25],
+    [0.05, 0.60, 0.10, 0.05, 0.10, 0.40],
+    [0.40, 0.15, 0.10, 0.50, 0.05, 0.20],
+    [0.10, 0.20, 0.30, 0.15, 0.20, 0.15],
+    [0.10, 0.20, 0.30, 0.15, 0.20, 0.15],
+    [0.15, 0.25, 0.20, 0.40, 0.15, 0.25]
+  ],
+
+  "notes": {
+    "prior_interpretation": "Each row represents an AU, each column an emotion",
+    "values": "Probabilities P(EMO|AU) - how likely an emotion given the AU is active",
+    "normalization": "Rows are normalized to sum to approximately 1.0 after loading",
+    "psychology_basis": [
+      "AU12 (Lip Corner Puller) -> strong for happy (smile)",
+      "AU15 (Lip Corner Depressor) -> strong for sad (frown)",
+      "AU4 (Brow Lowerer) + AU23 -> strong for angry",
+      "AU1+AU2+AU5 (Brow raise) -> strong for surprise",
+      "AU9 (Nose Wrinkler) -> strong for disgust",
+      "AU20 (Lip Stretch) + AU4 -> strong for fear"
+    ]
+  }
+}
