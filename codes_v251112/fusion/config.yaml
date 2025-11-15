@@ -7,10 +7,10 @@
 # -----------------------------------------------------------------
 dataset:
   # 数据集名称: MOSEI 或 MELD
-  name: "MELD"
+  name: "MOSEI"
 
   # 数据目录路径
-  data_dir: "./output/meld_utterance_features"
+  data_dir: "./output/mosei_utterance_features"
 
   # Seen emotions (有标签，用于训练和测试)
   # 格式: emotion名称 -> label_id
@@ -103,7 +103,7 @@ system:
   device: "cuda"
 
   # 随机种子
-  random_seed: 42
+  random_seed: 2025
 
   # 保存目录
   save_dir: "./checkpoints"
