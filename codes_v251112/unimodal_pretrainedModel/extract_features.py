@@ -417,9 +417,9 @@ def extract_meld(config):
 
 
 def main():
-    """主函数 - 完全自动化"""
+    """主函数 - 完全自动化，支持多数据集提取"""
     logger.info("="*60)
-    logger.info("自动化特征提取系统")
+    logger.info("自动化特征提取系统 v1.1")
     logger.info("="*60 + "\n")
 
     # 加载配置
@@ -429,30 +429,77 @@ def main():
         logger.error(f"加载配置文件失败: {str(e)}")
         return
 
+    # 检查哪些数据集已启用
+    enabled_datasets = []
+    if config['mosei'].get('enabled', False):
+        enabled_datasets.append('mosei')
+    if config['meld'].get('enabled', False):
+        enabled_datasets.append('meld')
+
+    if not enabled_datasets:
+        logger.error("没有启用任何数据集！")
+        logger.error("请在 extraction_settings.json 中设置 mosei.enabled=true 或 meld.enabled=true")
+        return
+
     # 显示配置信息
-    dataset = config['dataset']['name']
     logger.info(f"配置加载成功")
-    logger.info(f"目标数据集: {dataset.upper()}")
+    logger.info(f"启用的数据集: {', '.join([d.upper() for d in enabled_datasets])}")
     logger.info(f"采样率: {config['extraction']['sampling_rate_fps']} fps")
     logger.info(f"最大帧数: {config['extraction']['max_frames']}")
     logger.info(f"训练 PCA: {config['extraction']['train_pca']}")
+    logger.info(f"PCA 模型共享: {config['extraction'].get('share_pca_model', True)}")
     logger.info("")
 
-    # 根据数据集类型提取
-    if dataset == 'mosei':
-        if not config['mosei']['enabled']:
-            logger.error("MOSEI 数据集未启用，请在 extraction_settings.json 中设置 enabled=true")
-            return
-        extract_mosei(config)
-    elif dataset == 'meld':
-        if not config['meld']['enabled']:
-            logger.error("MELD 数据集未启用，请在 extraction_settings.json 中设置 enabled=true")
-            return
-        extract_meld(config)
-    else:
-        logger.error(f"不支持的数据集: {dataset}")
-        logger.error("请在 extraction_settings.json 中设置 dataset.name 为 'mosei' 或 'meld'")
-        return
+    # PCA 模型路径管理
+    shared_pca_path = None
+    share_pca = config['extraction'].get('share_pca_model', True)
+
+    # 按顺序提取所有启用的数据集
+    all_results = {}
+    for idx, dataset in enumerate(enabled_datasets):
+        logger.info("="*60)
+        logger.info(f"[{idx+1}/{len(enabled_datasets)}] 开始提取数据集: {dataset.upper()}")
+        logger.info("="*60 + "\n")
+
+        # 如果是后续数据集且启用了 PCA 共享，使用已训练的 PCA 模型
+        if idx > 0 and share_pca and shared_pca_path and os.path.exists(shared_pca_path):
+            logger.info(f"使用已训练的 PCA 模型: {shared_pca_path}")
+            config['extraction']['train_pca'] = False
+            config['extraction']['pca_model_path'] = shared_pca_path
+        else:
+            # 第一个数据集训练 PCA
+            config['extraction']['train_pca'] = True
+            config['extraction']['pca_model_path'] = None
+
+        # 提取特征
+        try:
+            if dataset == 'mosei':
+                stats = extract_mosei(config)
+                all_results['mosei'] = stats
+                # 保存 PCA 模型路径供后续数据集使用
+                if share_pca and idx == 0:
+                    shared_pca_path = os.path.join(config['mosei']['output_dir'], 'audio_pca_model.pkl')
+            elif dataset == 'meld':
+                stats = extract_meld(config)
+                all_results['meld'] = stats
+                # 保存 PCA 模型路径供后续数据集使用
+                if share_pca and idx == 0:
+                    shared_pca_path = os.path.join(config['meld']['output_dir'], 'audio_pca_model.pkl')
+        except Exception as e:
+            logger.error(f"提取数据集 {dataset.upper()} 时出错: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            continue
+
+    # 显示总结
+    logger.info("="*60)
+    logger.info("全部提取完成！")
+    logger.info("="*60)
+    logger.info(f"已完成的数据集: {len(all_results)}/{len(enabled_datasets)}")
+    for dataset, stats in all_results.items():
+        logger.info(f"\n{dataset.upper()} 统计:")
+        logger.info(f"  {stats}")
+    logger.info("="*60 + "\n")
 
 
 if __name__ == '__main__':
