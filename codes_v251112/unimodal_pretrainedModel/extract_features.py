@@ -227,8 +227,7 @@ def extract_mosei(config):
                 'video_features': features['video_features'],
                 'label': emotion_mapping[emotion],
                 'emotion': emotion,
-                'sample_id': sample_id,
-                'num_frames': features['num_frames']
+                'sample_id': sample_id
             }
 
             emotion_data[emotion].append(sample_data)
@@ -376,8 +375,7 @@ def extract_meld(config):
                     'video_features': features['video_features'],
                     'label': emotion_mapping[emotion],
                     'emotion': emotion,
-                    'sample_id': sample_id,
-                    'num_frames': features['num_frames']
+                    'sample_id': sample_id
                 }
 
                 emotion_data[emotion].append(sample_data)

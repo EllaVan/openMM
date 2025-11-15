@@ -154,15 +154,21 @@ ls -lh output/mosei_features_5fps/
 
 ```python
 {
-    'audio_features': numpy.array([T, 384]),   # 音频特征
-    'text_features': numpy.array([T, 384]),    # 文本特征
-    'video_features': numpy.array([T, 384]),   # 视频特征
+    'audio_features': numpy.array([384]),      # 音频特征 (utterance-level)
+    'text_features': numpy.array([384]),       # 文本特征 (utterance-level)
+    'video_features': numpy.array([384]),      # 视频特征 (utterance-level)
     'label': int,                               # 0-6 (情感ID)
     'emotion': str,                             # happy/sad/...
-    'sample_id': str,                           # 样本ID
-    'num_frames': int                           # 帧数T
+    'sample_id': str                            # 样本ID
 }
 ```
+
+**特征说明**：
+- 所有模态都是 **utterance-level**（话语级别）特征
+- 每个样本都是固定的 384 维向量
+- **文本**：使用 [CLS] token 作为句子表示
+- **音频**：对所有时间步进行 mean pooling
+- **视频**：对所有采样帧（5fps）进行 mean pooling
 
 **使用示例**：
 
@@ -173,8 +179,9 @@ with open('output/mosei_features_5fps/MOSEIhappylabel0.pkl', 'rb') as f:
     data = pickle.load(f)
 
 print(f"Happy 样本数: {len(data)}")
-print(f"第一个样本帧数: {data[0]['num_frames']}")
-print(f"音频特征形状: {data[0]['audio_features'].shape}")  # (T, 384)
+print(f"音频特征形状: {data[0]['audio_features'].shape}")  # (384,)
+print(f"文本特征形状: {data[0]['text_features'].shape}")  # (384,)
+print(f"视频特征形状: {data[0]['video_features'].shape}")  # (384,)
 ```
 
 ---
