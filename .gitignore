@@ -7,6 +7,7 @@ referCodes/
 codes_v251112/output/
 codes_v251112/unimodal_pretrainedModel/logs
 codes_v251112/unimodal_utterance/logs
+codes_v251112/unimodal_utterance/__pycache__
 
 # for multimodal feature fuion
 codes_v251112/hyper_fusion/
