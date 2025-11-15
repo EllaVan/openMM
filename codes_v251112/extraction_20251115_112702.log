@@ -1,0 +1,136 @@
+2025-11-15 11:27:02,322 - INFO - ============================================================
+2025-11-15 11:27:02,322 - INFO - 自动化特征提取系统 v1.1
+2025-11-15 11:27:02,322 - INFO - ============================================================
+
+2025-11-15 11:27:02,322 - INFO - 配置加载成功
+2025-11-15 11:27:02,322 - INFO - 启用的数据集: MOSEI, MELD
+2025-11-15 11:27:02,322 - INFO - 采样率: 5 fps
+2025-11-15 11:27:02,323 - INFO - 最大帧数: 300
+2025-11-15 11:27:02,323 - INFO - 训练 PCA: True
+2025-11-15 11:27:02,323 - INFO - PCA 模型共享: True
+2025-11-15 11:27:02,323 - INFO - 
+2025-11-15 11:27:02,323 - INFO - ============================================================
+2025-11-15 11:27:02,323 - INFO - [1/2] 开始提取数据集: MOSEI
+2025-11-15 11:27:02,323 - INFO - ============================================================
+
+2025-11-15 11:27:02,323 - INFO - ============================================================
+2025-11-15 11:27:02,323 - INFO - 开始提取 MOSEI 数据集
+2025-11-15 11:27:02,323 - INFO - ============================================================
+2025-11-15 11:27:02,323 - INFO - 数据集目录: /media/sda/wf/openMM/Datasets/MOSEI
+2025-11-15 11:27:02,323 - INFO - 标签文件: /media/sda/wf/openMM/Datasets/MOSEI/merged_label_new.csv
+2025-11-15 11:27:02,323 - INFO - 输出目录: ./output/mosei_features_5fps
+2025-11-15 11:27:02,323 - INFO - 采样率: 5 fps
+2025-11-15 11:27:02,323 - INFO - ============================================================
+
+2025-11-15 11:27:02,323 - INFO - 输出目录已创建: ./output/mosei_features_5fps
+
+2025-11-15 11:27:04,850 - INFO - ============================================================
+2025-11-15 11:27:04,850 - INFO - 阶段 1: 训练音频 PCA 模型
+2025-11-15 11:27:04,850 - INFO - ============================================================
+2025-11-15 11:27:04,906 - INFO - 数据集总样本数: 22856
+2025-11-15 11:27:04,907 - INFO - 随机采样 1000 个样本用于训练 PCA
+2025-11-15 11:27:04,938 - INFO - 找到 1000 个有效音频文件
+2025-11-15 11:30:36,578 - INFO - ============================================================
+2025-11-15 11:30:36,580 - INFO - 音频 PCA 模型训练完成
+2025-11-15 11:30:36,580 - INFO - ============================================================
+
+2025-11-15 11:30:36,581 - INFO - ============================================================
+2025-11-15 11:30:36,581 - INFO - 阶段 2: 批量提取特征
+2025-11-15 11:30:36,582 - INFO - ============================================================
+
+2025-11-15 11:30:36,648 - INFO - 总样本数: 22856
+2025-11-15 11:30:36,654 - ERROR - 提取数据集 MOSEI 时出错: 'emotion'
+2025-11-15 11:30:36,657 - ERROR - Traceback (most recent call last):
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'emotion'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/media/sda/wf/openMM/codes_v251112/unimodal_pretrainedModel/extract_features.py", line 477, in main
+    stats = extract_mosei(config)
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/openMM/codes_v251112/unimodal_pretrainedModel/extract_features.py", line 203, in extract_mosei
+    emotion = row['emotion'].lower()
+              ~~~^^^^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/series.py", line 1133, in __getitem__
+    return self._get_value(key)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/series.py", line 1249, in _get_value
+    loc = self.index.get_loc(label)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'emotion'
+
+2025-11-15 11:30:36,666 - INFO - ============================================================
+2025-11-15 11:30:36,666 - INFO - [2/2] 开始提取数据集: MELD
+2025-11-15 11:30:36,666 - INFO - ============================================================
+
+2025-11-15 11:30:36,666 - INFO - ============================================================
+2025-11-15 11:30:36,666 - INFO - 开始提取 MELD 数据集
+2025-11-15 11:30:36,666 - INFO - ============================================================
+2025-11-15 11:30:36,666 - INFO - 数据集目录: /media/sda/wf/openMM/Datasets/MELD/organized
+2025-11-15 11:30:36,666 - INFO - 输出目录: ./output/meld_features_5fps
+2025-11-15 11:30:36,666 - INFO - 划分: all
+2025-11-15 11:30:36,666 - INFO - 采样率: 5 fps
+2025-11-15 11:30:36,667 - INFO - ============================================================
+
+2025-11-15 11:30:36,667 - INFO - 输出目录已创建: ./output/meld_features_5fps
+
+2025-11-15 11:30:37,085 - INFO - ============================================================
+2025-11-15 11:30:37,085 - INFO - 阶段 1: 训练音频 PCA 模型（MELD）
+2025-11-15 11:30:37,085 - INFO - ============================================================
+2025-11-15 11:30:37,487 - INFO - 找到 13707 个音频文件
+2025-11-15 11:30:37,488 - INFO - 随机采样 1000 个样本用于训练 PCA
+2025-11-15 11:34:04,733 - INFO - ============================================================
+2025-11-15 11:34:04,734 - INFO - 音频 PCA 模型训练完成
+2025-11-15 11:34:04,734 - INFO - ============================================================
+
+2025-11-15 11:34:04,735 - INFO - ============================================================
+2025-11-15 11:34:04,735 - INFO - 处理 MELD train 集
+2025-11-15 11:34:04,735 - INFO - ============================================================
+
+2025-11-15 11:34:04,763 - INFO - train 集总样本数: 9989
+2025-11-15 11:34:04,765 - ERROR - 提取数据集 MELD 时出错: 'text'
+2025-11-15 11:34:04,766 - ERROR - Traceback (most recent call last):
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3812, in get_loc
+    return self._engine.get_loc(casted_key)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "pandas/_libs/index.pyx", line 167, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/index.pyx", line 196, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas/_libs/hashtable_class_helper.pxi", line 7096, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 'text'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/media/sda/wf/openMM/codes_v251112/unimodal_pretrainedModel/extract_features.py", line 483, in main
+    stats = extract_meld(config)
+            ^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/openMM/codes_v251112/unimodal_pretrainedModel/extract_features.py", line 351, in extract_meld
+    text = row['text']
+           ~~~^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/series.py", line 1133, in __getitem__
+    return self._get_value(key)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/series.py", line 1249, in _get_value
+    loc = self.index.get_loc(label)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/media/sda/wf/anaconda3/envs/openMM_env/lib/python3.12/site-packages/pandas/core/indexes/base.py", line 3819, in get_loc
+    raise KeyError(key) from err
+KeyError: 'text'
+
+2025-11-15 11:34:04,789 - INFO - ============================================================
+2025-11-15 11:34:04,790 - INFO - 全部提取完成！
+2025-11-15 11:34:04,790 - INFO - ============================================================
+2025-11-15 11:34:04,790 - INFO - 已完成的数据集: 0/2
+2025-11-15 11:34:04,790 - INFO - ============================================================
+
