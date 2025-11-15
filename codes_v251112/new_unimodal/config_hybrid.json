@@ -28,17 +28,17 @@
   "video": {
     "model_name": "google/vit-small-patch16-224",
     "model_path": "/media/sda/wf/openMM/materials_task/vit_small_patch16_224.dino",
-    "fps": 25,
+    "fps": 10,
     "feature_mode": "cls",
     "output_dim": 384,
-    "description": "视频特征提取器（直接输出 384 维）"
+    "description": "视频特征提取器（直接输出 384 维）- 优化：fps从25降到10，加速2.5x"
   },
 
   "memory_management": {
-    "max_frames": 500,
-    "video_batch_size": 32,
+    "max_frames": 300,
+    "video_batch_size": 64,
     "enable_memory_cleanup": true,
-    "description": "内存管理配置"
+    "description": "内存管理配置 - 优化：max_frames从500降到300，batch从32提到64"
   },
 
   "output": {
