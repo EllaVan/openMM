@@ -66,10 +66,23 @@ def extract_mosei(config):
     df = pd.read_csv(label_file)
     logger.info(f"数据集总样本数: {len(df)}")
 
-    # 情感映射
+    # 情感映射（支持 angry/anger, surprise/surprised 等变体）
     emotion_mapping = {
-        'happy': 0, 'sad': 1, 'angry': 2,
-        'surprise': 3, 'disgust': 4, 'fear': 5, 'neutral': 6
+        'happy': 0, 'sad': 1, 'angry': 2, 'anger': 2,
+        'surprise': 3, 'surprised': 3,
+        'disgust': 4, 'disgusted': 4,
+        'fear': 5, 'fearful': 5,
+        'neutral': 6
+    }
+
+    # 情感标准化映射（统一为标准名称）
+    emotion_normalize = {
+        'happy': 'happy', 'sad': 'sad',
+        'angry': 'angry', 'anger': 'angry',
+        'surprise': 'surprise', 'surprised': 'surprise',
+        'disgust': 'disgust', 'disgusted': 'disgust',
+        'fear': 'fear', 'fearful': 'fear',
+        'neutral': 'neutral'
     }
 
     # 按情感分组存储
@@ -95,6 +108,9 @@ def extract_mosei(config):
 
         sample_id = f"{video_id}_{clip_id}"
         try:
+            # 标准化情感名称
+            emotion_std = emotion_normalize.get(emotion, emotion)
+
             features = extractor.extract_multimodal_features(text, audio_path, video_path)
 
             sample_data = {
@@ -102,11 +118,11 @@ def extract_mosei(config):
                 'audio_features': features['audio_features'],
                 'video_features': features['video_features'],
                 'label': emotion_mapping[emotion],
-                'emotion': emotion,
+                'emotion': emotion_std,
                 'sample_id': sample_id
             }
 
-            emotion_data[emotion].append(sample_data)
+            emotion_data[emotion_std].append(sample_data)
             success_count += 1
 
         except Exception as e:
@@ -148,10 +164,23 @@ def extract_meld(config):
     # 创建提取器
     extractor = create_extractor('extraction_settings.json')
 
-    # 情感映射
+    # 情感映射（支持 angry/anger, surprise/surprised 等变体）
     emotion_mapping = {
-        'happy': 0, 'sad': 1, 'angry': 2,
-        'surprise': 3, 'disgust': 4, 'fear': 5, 'neutral': 6
+        'happy': 0, 'sad': 1, 'angry': 2, 'anger': 2,
+        'surprise': 3, 'surprised': 3,
+        'disgust': 4, 'disgusted': 4,
+        'fear': 5, 'fearful': 5,
+        'neutral': 6
+    }
+
+    # 情感标准化映射（统一为标准名称）
+    emotion_normalize = {
+        'happy': 'happy', 'sad': 'sad',
+        'angry': 'angry', 'anger': 'angry',
+        'surprise': 'surprise', 'surprised': 'surprise',
+        'disgust': 'disgust', 'disgusted': 'disgust',
+        'fear': 'fear', 'fearful': 'fear',
+        'neutral': 'neutral'
     }
 
     # 确定要处理的splits
@@ -196,6 +225,9 @@ def extract_meld(config):
 
             sample_id = f"{split}_{video_name}"
             try:
+                # 标准化情感名称
+                emotion_std = emotion_normalize.get(emotion, emotion)
+
                 features = extractor.extract_multimodal_features(text, audio_path, video_path)
 
                 sample_data = {
@@ -203,11 +235,11 @@ def extract_meld(config):
                     'audio_features': features['audio_features'],
                     'video_features': features['video_features'],
                     'label': emotion_mapping[emotion],
-                    'emotion': emotion,
+                    'emotion': emotion_std,
                     'sample_id': sample_id
                 }
 
-                emotion_data[emotion].append(sample_data)
+                emotion_data[emotion_std].append(sample_data)
                 success_count += 1
 
             except Exception as e:
