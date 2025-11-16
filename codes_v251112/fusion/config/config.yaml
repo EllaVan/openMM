@@ -1,0 +1,50 @@
+# 样本级别超图融合配置
+
+dataset:
+  name: MELD
+  data_dir: ./output/meld_utterance_features
+  seen_emotions:
+    happy: 0
+    sad: 1
+  unseen_emotions:
+    fear: 5
+  train_ratio: 0.7
+  merge_train_dev: true
+
+dataloader:
+  batch_size: 32
+  num_workers: 4
+  shuffle_train: true
+  pin_memory: true
+
+model:
+  dropout: 0.1
+  hypergraph:
+    hidden_dim: 256
+    num_conv_layers: 2
+  sample_hypergraph:
+    use_edge_weights: true
+    similarity_temperature: 1.0
+
+training:
+  epochs: 50
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  scheduler:
+    use_scheduler: true
+    mode: max
+    factor: 0.5
+    patience: 5
+  early_stopping:
+    use_early_stopping: true
+    patience: 10
+
+system:
+  device: cuda
+  random_seed: 42
+  save_dir: ./checkpoints
+  log_dir: ./logs
+
+experiment:
+  name: sample_hypergraph
+  save_best_model: true
