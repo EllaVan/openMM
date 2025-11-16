@@ -434,6 +434,157 @@ def create_multi_emotion_dataloaders(
     return dataloaders
 
 
+def create_multi_emotion_dataloaders_hydra(
+    cfg
+) -> Dict[str, DataLoader]:
+    """
+    创建支持多个 emotions 的 DataLoader - Hydra 版本
+
+    Args:
+        cfg: Hydra DictConfig 对象
+
+    Returns:
+        dataloaders: DataLoader 字典
+    """
+    # 获取配置 (Hydra 使用点号访问)
+    data_dir = cfg.dataset.data_dir
+    dataset_name = cfg.dataset.name
+    seen_emotions = dict(cfg.dataset.seen_emotions)
+    unseen_emotions = dict(cfg.dataset.unseen_emotions) if cfg.dataset.unseen_emotions else {}
+    train_ratio = cfg.dataset.train_ratio
+    merge_train_dev = cfg.dataset.merge_train_dev
+    seed = cfg.system.random_seed
+
+    batch_size = cfg.dataloader.batch_size
+    num_workers = cfg.dataloader.num_workers
+    shuffle_train = cfg.dataloader.shuffle_train
+    pin_memory = cfg.dataloader.pin_memory
+
+    print(f"\n{'='*70}")
+    print(f"加载数据集: {dataset_name}")
+    print(f"数据目录: {data_dir}")
+    print(f"{'='*70}")
+
+    # 创建标签映射
+    emotion_label_map = {}
+    for new_label, (emotion, original_label) in enumerate(seen_emotions.items()):
+        emotion_label_map[original_label] = new_label
+
+    print(f"\n标签映射: {emotion_label_map}")
+
+    # 1. 加载 seen emotions 数据
+    print(f"\n加载 Seen Emotions: {list(seen_emotions.keys())}")
+    train_seen_data = []
+    test_seen_data = []
+
+    for emotion, label_id in seen_emotions.items():
+        print(f"  加载 {emotion} (label_id={label_id})...")
+        train_data, test_data = load_emotion_data(
+            data_dir=data_dir,
+            dataset_name=dataset_name,
+            emotion=emotion,
+            label_id=label_id,
+            is_seen=True,
+            train_ratio=train_ratio,
+            merge_train_dev=merge_train_dev,
+            seed=seed
+        )
+        train_seen_data.extend(train_data)
+        test_seen_data.extend(test_data)
+        print(f"    训练集: {len(train_data)} 样本, 测试集: {len(test_data)} 样本")
+
+    # 创建 Dataset
+    train_seen_dataset = MultiEmotionDataset(train_seen_data, emotion_label_map)
+    test_seen_dataset = MultiEmotionDataset(test_seen_data, emotion_label_map)
+
+    print(f"\n【Seen Emotions 统计】")
+    print(f"  训练集总样本数: {len(train_seen_dataset)}")
+    print(f"  测试集总样本数: {len(test_seen_dataset)}")
+
+    train_stats = train_seen_dataset.get_stats()
+    print(f"\n  训练集帧数统计:")
+    print(f"    平均: {train_stats['avg_frames']:.1f}")
+    print(f"    中位数: {train_stats['median_frames']:.1f}")
+    print(f"    范围: [{train_stats['min_frames']:.0f}, {train_stats['max_frames']:.0f}]")
+    print(f"  情感分布: {train_stats['emotion_counts']}")
+
+    # 创建 DataLoader
+    dataloaders = {}
+
+    dataloaders['train_seen'] = DataLoader(
+        train_seen_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle_train,
+        num_workers=num_workers,
+        collate_fn=padded_collate_fn,
+        pin_memory=pin_memory
+    )
+
+    dataloaders['test_seen'] = DataLoader(
+        test_seen_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=padded_collate_fn,
+        pin_memory=pin_memory
+    )
+
+    # 2. 加载 unseen emotions 数据（可选）
+    if unseen_emotions:
+        print(f"\n加载 Unseen Emotions: {list(unseen_emotions.keys())}")
+        train_unseen_data = []
+        test_unseen_data = []
+
+        for emotion, label_id in unseen_emotions.items():
+            print(f"  加载 {emotion} (label_id={label_id})...")
+            train_data, test_data = load_emotion_data(
+                data_dir=data_dir,
+                dataset_name=dataset_name,
+                emotion=emotion,
+                label_id=label_id,
+                is_seen=False,
+                train_ratio=train_ratio,
+                merge_train_dev=merge_train_dev,
+                seed=seed
+            )
+            train_unseen_data.extend(train_data)
+            test_unseen_data.extend(test_data)
+            print(f"    训练集: {len(train_data)} 样本, 测试集: {len(test_data)} 样本")
+
+        # 创建 unseen emotions 的 Dataset
+        train_unseen_dataset = MultiEmotionDataset(train_unseen_data, {})
+        test_unseen_dataset = MultiEmotionDataset(test_unseen_data, {})
+
+        print(f"\n【Unseen Emotions 统计】")
+        print(f"  训练集总样本数: {len(train_unseen_dataset)}")
+        print(f"  测试集总样本数: {len(test_unseen_dataset)}")
+
+        unseen_stats = train_unseen_dataset.get_stats()
+        print(f"  情感分布: {unseen_stats['emotion_counts']}")
+
+        dataloaders['train_unseen'] = DataLoader(
+            train_unseen_dataset,
+            batch_size=batch_size,
+            shuffle=shuffle_train,
+            num_workers=num_workers,
+            collate_fn=padded_collate_fn,
+            pin_memory=pin_memory
+        )
+
+        dataloaders['test_unseen'] = DataLoader(
+            test_unseen_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            collate_fn=padded_collate_fn,
+            pin_memory=pin_memory
+        )
+
+    print(f"{'='*70}\n")
+
+    return dataloaders
+
+
 if __name__ == "__main__":
     # 测试 DataLoader
     from config_utils import load_config
