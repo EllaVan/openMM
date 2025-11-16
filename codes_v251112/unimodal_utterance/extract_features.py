@@ -138,7 +138,7 @@ def extract_mosei(config):
     stats = {}
     for emotion, samples in emotion_data.items():
         if len(samples) > 0:
-            output_file = os.path.join(output_dir, f"MOSEI{emotion}label{emotion_mapping[emotion]}.pkl")
+            output_file = os.path.join(output_dir, f"MOSEI{emotion}label{label}.pkl")
             with open(output_file, 'wb') as f:
                 pickle.dump(samples, f)
             stats[emotion] = len(samples)
@@ -241,7 +241,7 @@ def extract_meld(config):
         stats = {}
         for emotion, samples in emotion_data.items():
             if len(samples) > 0:
-                output_file = os.path.join(output_dir, f"MELD_{split}{emotion}label{emotion_mapping[emotion]}.pkl")
+                output_file = os.path.join(output_dir, f"MELD_{split}{emotion}label{label}.pkl")
                 with open(output_file, 'wb') as f:
                     pickle.dump(samples, f)
                 stats[emotion] = len(samples)
