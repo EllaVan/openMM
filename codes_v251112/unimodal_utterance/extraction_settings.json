@@ -6,7 +6,7 @@
     "base_dir": "/media/sda/wf/openMM/Datasets/MOSEI",
     "label_file": "/media/sda/wf/openMM/Datasets/MOSEI/merged_label_new.csv",
     "output_dir": "./output/mosei_utterance_features",
-    "enabled": true,
+    "enabled": false,
     "description": "MOSEI 数据集配置，设置 enabled=true 启用提取",
     "stats": {
       "total_samples": 22856,
@@ -20,7 +20,7 @@
     "base_dir": "/media/sda/wf/openMM/Datasets/MELD/organized",
     "output_dir": "./output/meld_utterance_features",
     "split": "all",
-    "enabled": false,
+    "enabled": true,
     "description": "MELD 数据集配置，split 可选: all/train/dev/test",
     "stats": {
       "total_samples": 13708,

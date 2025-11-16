@@ -101,6 +101,7 @@ def extract_mosei(config):
         video_id = row['video_id']
         clip_id = str(row['clip_id'])
         emotion = row['voted_emotion'].lower()
+        label = emotion_mapping[emotion]
         emotion = emotion_standard_mapping.get(emotion, emotion)
         text = row['text']
 
@@ -121,7 +122,7 @@ def extract_mosei(config):
                 'text_features': features['text_features'],
                 'audio_features': features['audio_features'],
                 'video_features': features['video_features'],
-                'label': emotion_mapping[emotion],
+                'label': label,
                 'emotion': emotion,
                 'sample_id': sample_id
             }
@@ -201,10 +202,11 @@ def extract_meld(config):
 
         # 提取特征
         for index, row in tqdm(df.iterrows(), total=len(df), desc=f"提取 {split}", ncols=80):
-            video_name = row['video_name']
+            video_name = row['file_id']
             emotion = row['emotion'].lower()
+            label = emotion_mapping[emotion]
             emotion = emotion_standard_mapping.get(emotion, emotion)
-            text = row['text']
+            text = row['utterance']
 
             # 文件路径
             video_path = os.path.join(split_dir, 'video', f"{video_name}.mp4")
@@ -223,7 +225,7 @@ def extract_meld(config):
                     'text_features': features['text_features'],
                     'audio_features': features['audio_features'],
                     'video_features': features['video_features'],
-                    'label': emotion_mapping[emotion],
+                    'label': label,
                     'emotion': emotion,
                     'sample_id': sample_id
                 }
