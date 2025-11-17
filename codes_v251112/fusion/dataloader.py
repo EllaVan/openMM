@@ -144,11 +144,10 @@ def load_emotion_data(
 
         # 添加 emotion 和 is_seen 信息
         for item in all_data:
-            item['emotion'] = emotion
+            # item['emotion'] = emotion
             item['is_seen'] = is_seen
 
         # 划分数据
-        random.seed(seed)
         indices = list(range(len(all_data)))
         random.shuffle(indices)
 
@@ -170,7 +169,7 @@ def load_emotion_data(
 
         # 添加 emotion 和 is_seen 信息
         for item in train_data + dev_data + test_data:
-            item['emotion'] = emotion
+            # item['emotion'] = emotion
             item['is_seen'] = is_seen
 
         # 合并 train 和 dev

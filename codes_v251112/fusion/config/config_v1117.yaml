@@ -1,8 +1,8 @@
 # 样本级别超图融合配置
 
 dataset:
-  name: MELD
-  data_dir: ./output/meld_utterance_features
+  name: MOSEI
+  data_dir: /media/sda/wf/openMM/codes_v251112/data/mosei_utterance_features
   seen_emotions:
     happy: 0
     sad: 1
@@ -40,8 +40,8 @@ training:
     patience: 10
 
 system:
-  device: cuda
-  random_seed: 42
+  device: cuda:0
+  random_seed: 2025
   save_dir: ./checkpoints
   log_dir: ./logs
 

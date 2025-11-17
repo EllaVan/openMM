@@ -6,11 +6,13 @@ materials_task/
 referCodes/
 
 # for unimodal feature extraction outputs
-codes_v251112/output/
+codes_v251112/data/
 codes_v251112/unimodal_pretrainedModel/
-codes_v251112/unimodal_utterance/logs
-codes_v251112/unimodal_utterance/__pycache__
-codes_v251112/fusion/__pycache__
+codes_v251112/unimodal_utterance/
 
 # for multimodal feature fuion
 codes_v251112/hyper_fusion/
+codes_v251112/fusion/__pycache__
+outputs/
+checkpoints/
+codes_v251112/fusion/checkpoints/

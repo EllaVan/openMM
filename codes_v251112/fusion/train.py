@@ -2,24 +2,24 @@
 """
 样本级别超图网络训练脚本
 """
-
 import os
 import sys
+from pathlib import Path
+# 保存执行目录
+exc_dir = str(Path(__file__).parent) #os.getcwd()
+
 import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch
 import torch.optim as optim
-from pathlib import Path
-
-# 保存执行目录
-exc_dir = os.getcwd()
 
 # 添加父目录到路径
 sys.path.append(str(Path(__file__).parent.parent))
+from utils.core_tools import seed_init
 
-from fusion.dataloader import create_emotion_dataloaders
-from fusion.sample_network import SampleHypergraphClassifier
+from dataloader import create_emotion_dataloaders
+from sample_network import SampleHypergraphClassifier
 
 
 # 配置日志
@@ -51,12 +51,14 @@ def train_epoch(model, dataloader, optimizer, device, epoch):
         correct += (predictions == batch['labels']).sum().item()
         total += batch['labels'].size(0)
 
+        '''
         if (batch_idx + 1) % 10 == 0:
             logger.info(
                 f"Epoch {epoch} | Batch {batch_idx+1}/{len(dataloader)} | "
                 f"Loss: {loss.item():.4f} | Acc: {100.*correct/total:.2f}%"
             )
-
+        '''
+    logger.info(f"Loss: {loss.item():.4f} | Acc: {100.*correct/total:.2f}%")
     return {'loss': total_loss / len(dataloader), 'accuracy': correct / total}
 
 
@@ -78,7 +80,7 @@ def evaluate(model, dataloader, device):
     return {'loss': total_loss / len(dataloader), 'accuracy': correct / total}
 
 
-@hydra.main(config_path="config", config_name="config", version_base=None)
+@hydra.main(config_path="config", config_name="config_v1117", version_base=None)
 def run_main(cfg: DictConfig):
     os.chdir(exc_dir)  # Hydra会改变工作目录
 
@@ -89,9 +91,7 @@ def run_main(cfg: DictConfig):
     device = torch.device(cfg.system.device if torch.cuda.is_available() else 'cpu')
     logger.info(f"使用设备: {device}")
 
-    torch.manual_seed(cfg.system.random_seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(cfg.system.random_seed)
+    seed_init(cfg.system.random_seed)
 
     os.makedirs(cfg.system.save_dir, exist_ok=True)
 
@@ -137,7 +137,7 @@ def run_main(cfg: DictConfig):
             optimizer, mode=cfg.training.scheduler.mode,
             factor=cfg.training.scheduler.factor,
             patience=cfg.training.scheduler.patience,
-            verbose=True
+            # verbose=True,
         )
 
     # 训练

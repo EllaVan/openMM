@@ -167,7 +167,7 @@ class SampleHypergraphClassifier(nn.Module):
 
         # 默认配置
         default_config = {
-            'hypergraph_hidden_dim': 256,
+            'hypergraph_hidden_dim': 768,
             'num_conv_layers': 2,
             'dropout': 0.1,
             'use_edge_weights': True,
