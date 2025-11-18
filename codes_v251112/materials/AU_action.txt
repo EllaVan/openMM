@@ -1,0 +1,20 @@
+AU1:raise inner brow
+AU2:raise outer brow
+AU4:low brow
+AU5:raise upper lid
+AU6:raise cheek
+AU7:tighten lid
+AU9:wrinkle nose
+AU10:raise upper lip
+AU12:pull lip corner
+AU13:puff cheek
+AU14:dimple
+AU15:depress lip corner
+AU16:depress lower lip
+AU17:raise chin
+AU18:pucker lip
+AU20:stretch lip
+AU23:tighten lip
+AU24:press lip
+AU25:part lips
+AU26:drop jaw
