@@ -29,6 +29,7 @@ from dillb_trainer import DILLBTrainer
 from continual_learning.domain_splitter import DomainSplitter, create_predefined_task_sequence
 from continual_learning.metrics import ContinualLearningMetrics
 from continual_learning.consistency_checker import ConsistencyStrategy
+from continual_learning.au_emo_prior_loader import AUEMOPriorLoader
 from hyper_fusion.dataloader import load_mosei_data
 
 
@@ -38,7 +39,12 @@ def parse_args():
     # Data
     parser.add_argument('--data_dir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default='MOSEI')
-    parser.add_argument('--au_prior_path', type=str, required=True)
+    parser.add_argument('--au_prior_path', type=str, default=None,
+                       help='Path to AU-EMO prior JSON file (if None, load from materials)')
+    parser.add_argument('--materials_dir', type=str, default='codes_v251112/materials',
+                       help='Path to materials directory for loading default prior')
+    parser.add_argument('--use_all_emotions', action='store_true',
+                       help='Use all 17 emotions instead of just 6 basic emotions')
     parser.add_argument('--num_aus', type=int, default=23)
 
     # Task Configuration
@@ -105,9 +111,24 @@ def main():
     # Load prior
     print("\n" + "-"*80)
     print("Loading AU-EMO Prior...")
-    with open(args.au_prior_path, 'r') as f:
-        prior_data = json.load(f)
-    prior_matrix = torch.tensor(prior_data['prior_matrix'], dtype=torch.float32)
+    if args.au_prior_path:
+        # Load from specified JSON file
+        print(f"Loading from: {args.au_prior_path}")
+        with open(args.au_prior_path, 'r') as f:
+            prior_data = json.load(f)
+        prior_matrix = torch.tensor(prior_data['prior_matrix'], dtype=torch.float32)
+    else:
+        # Load from materials directory
+        print(f"Loading from materials directory: {args.materials_dir}")
+        loader = AUEMOPriorLoader(
+            materials_dir=args.materials_dir,
+            use_basic_emotions_only=not args.use_all_emotions,
+            target_num_aus=args.num_aus
+        )
+        prior_matrix, emotion_names, au_indices = loader.get_prior_matrix()
+        print(f"Loaded from RAF-DB materials")
+        print(f"Emotions: {emotion_names}")
+
     num_emotions = prior_matrix.shape[1]
 
     # Load dataset

@@ -1,0 +1,22 @@
+AU1:inner brow raiser
+AU2:outer brow raiser
+AU4:brow lower
+AU5:upper lid raiser
+AU6:cheek raiser
+AU7:lid tightener
+AU9:nose wrinkler
+AU10:upper lip raiser
+AU11:nasolabial deepner
+AU12:lip corner puller
+AU13:cheek puffer
+AU14:dimpler
+AU15:lip corner depressor
+AU16:lower lip depressor
+AU17:chin raiser
+AU18:lip puckerer
+AU20:lip stretcher
+AU22:lip funneler
+AU23:lip tightener
+AU24:lip pressor
+AU25:lips part
+AU26:jaw drop

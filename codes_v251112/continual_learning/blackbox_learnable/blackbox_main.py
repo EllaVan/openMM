@@ -29,6 +29,7 @@ from continual_learning.au_emotion_network import AUEmotionNetwork
 from continual_learning.domain_splitter import DomainSplitter, create_predefined_task_sequence
 from continual_learning.metrics import ContinualLearningMetrics
 from continual_learning.consistency_checker import ConsistencyStrategy
+from continual_learning.au_emo_prior_loader import AUEMOPriorLoader
 from hyper_fusion.dataloader import load_mosei_data
 
 
@@ -44,8 +45,12 @@ def parse_args():
                        choices=['MOSEI', 'MELD'])
 
     # AU-EMO Prior
-    parser.add_argument('--au_prior_path', type=str, required=True,
-                       help='Path to AU-EMO prior JSON file')
+    parser.add_argument('--au_prior_path', type=str, default=None,
+                       help='Path to AU-EMO prior JSON file (if None, load from materials)')
+    parser.add_argument('--materials_dir', type=str, default='codes_v251112/materials',
+                       help='Path to materials directory for loading default prior')
+    parser.add_argument('--use_all_emotions', action='store_true',
+                       help='Use all 17 emotions instead of just 6 basic emotions')
     parser.add_argument('--num_aus', type=int, default=23)
     parser.add_argument('--prior_strength', type=float, default=0.1,
                        help='Matrix regularization strength (KL to prior)')
@@ -130,7 +135,22 @@ def main():
     print("Loading AU-EMO Prior...")
     print("-"*80)
 
-    prior_matrix, au_names, emotion_names = load_au_emo_prior(args.au_prior_path)
+    if args.au_prior_path:
+        # Load from specified JSON file
+        print(f"Loading from: {args.au_prior_path}")
+        prior_matrix, au_names, emotion_names = load_au_emo_prior(args.au_prior_path)
+    else:
+        # Load from materials directory
+        print(f"Loading from materials directory: {args.materials_dir}")
+        loader = AUEMOPriorLoader(
+            materials_dir=args.materials_dir,
+            use_basic_emotions_only=not args.use_all_emotions,
+            target_num_aus=args.num_aus
+        )
+        prior_matrix, emotion_names, au_indices = loader.get_prior_matrix()
+        au_names = [f"AU{i}" for i in au_indices]
+        print(f"Loaded from RAF-DB materials")
+
     num_emotions = len(emotion_names)
 
     print(f"Prior matrix shape: {prior_matrix.shape}")

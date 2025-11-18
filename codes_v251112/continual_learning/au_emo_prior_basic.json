@@ -1,0 +1,54 @@
+{
+  "emotions": [
+    "surprise",
+    "fear",
+    "disgust",
+    "happiness",
+    "sadness",
+    "anger"
+  ],
+  "num_aus": 23,
+  "prior": {
+    "surprise": {
+      "AU0": 1.0,
+      "AU1": 1.0,
+      "AU4": 0.66
+    },
+    "fear": {
+      "AU0": 1.0,
+      "AU1": 0.57,
+      "AU3": 1.0,
+      "AU4": 0.63,
+      "AU19": 1.0
+    },
+    "disgust": {
+      "AU3": 0.31,
+      "AU8": 1.0,
+      "AU9": 1.0,
+      "AU16": 1.0
+    },
+    "happiness": {
+      "AU5": 0.51,
+      "AU11": 1.0
+    },
+    "sadness": {
+      "AU0": 0.6,
+      "AU3": 1.0,
+      "AU5": 0.5,
+      "AU14": 1.0,
+      "AU16": 0.67
+    },
+    "anger": {
+      "AU3": 1.0,
+      "AU6": 1.0,
+      "AU9": 0.26,
+      "AU16": 0.52,
+      "AU22": 0.29
+    }
+  },
+  "metadata": {
+    "source": "RAF-DB",
+    "normalized": false,
+    "basic_emotions_only": true
+  }
+}

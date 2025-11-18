@@ -1,0 +1,146 @@
+{
+  "emotions": [
+    "surprise",
+    "fear",
+    "disgust",
+    "happiness",
+    "sadness",
+    "anger",
+    "happiness_surprise",
+    " happiness_disgust",
+    "sadness_fear",
+    " sadness_anger",
+    " sadness_surprise",
+    " sadness_disgust",
+    "fear_anger",
+    " fear_surprise",
+    "anger_surprise",
+    " anger_disgust",
+    "disgust_surprise"
+  ],
+  "num_aus": 23,
+  "prior": {
+    "surprise": {
+      "AU0": 1.0,
+      "AU1": 1.0,
+      "AU4": 0.66
+    },
+    "fear": {
+      "AU0": 1.0,
+      "AU1": 0.57,
+      "AU3": 1.0,
+      "AU4": 0.63,
+      "AU19": 1.0
+    },
+    "disgust": {
+      "AU3": 0.31,
+      "AU8": 1.0,
+      "AU9": 1.0,
+      "AU16": 1.0
+    },
+    "happiness": {
+      "AU5": 0.51,
+      "AU11": 1.0
+    },
+    "sadness": {
+      "AU0": 0.6,
+      "AU3": 1.0,
+      "AU5": 0.5,
+      "AU14": 1.0,
+      "AU16": 0.67
+    },
+    "anger": {
+      "AU3": 1.0,
+      "AU6": 1.0,
+      "AU9": 0.26,
+      "AU16": 0.52,
+      "AU22": 0.29
+    },
+    "happiness_surprise": {
+      "AU0": 1.0,
+      "AU1": 1.0,
+      "AU4": 0.64,
+      "AU11": 1.0
+    },
+    " happiness_disgust": {
+      "AU3": 0.32,
+      "AU5": 0.61,
+      "AU8": 0.59,
+      "AU9": 1.0,
+      "AU11": 1.0
+    },
+    "sadness_fear": {
+      "AU0": 1.0,
+      "AU1": 0.46,
+      "AU3": 1.0,
+      "AU4": 0.24,
+      "AU5": 0.34,
+      "AU14": 0.3,
+      "AU19": 1.0
+    },
+    " sadness_anger": {
+      "AU3": 1.0,
+      "AU5": 0.26,
+      "AU6": 0.48,
+      "AU14": 1.0,
+      "AU16": 0.5
+    },
+    " sadness_surprise": {
+      "AU0": 1.0,
+      "AU1": 0.27,
+      "AU3": 1.0,
+      "AU5": 0.31
+    },
+    " sadness_disgust": {
+      "AU0": 0.49,
+      "AU3": 1.0,
+      "AU5": 0.61,
+      "AU8": 0.2,
+      "AU9": 1.0,
+      "AU14": 0.54,
+      "AU16": 0.47
+    },
+    "fear_anger": {
+      "AU3": 1.0,
+      "AU4": 0.4,
+      "AU6": 0.39,
+      "AU9": 0.3,
+      "AU19": 1.0
+    },
+    " fear_surprise": {
+      "AU0": 1.0,
+      "AU1": 1.0,
+      "AU3": 0.47,
+      "AU4": 1.0,
+      "AU8": 0.35,
+      "AU19": 1.0
+    },
+    "anger_surprise": {
+      "AU3": 1.0,
+      "AU4": 0.35,
+      "AU6": 0.5,
+      "AU9": 0.34
+    },
+    " anger_disgust": {
+      "AU3": 1.0,
+      "AU6": 0.6,
+      "AU8": 0.57,
+      "AU9": 1.0,
+      "AU16": 1.0
+    },
+    "disgust_surprise": {
+      "AU0": 1.0,
+      "AU1": 1.0,
+      "AU3": 0.45,
+      "AU4": 1.0,
+      "AU8": 0.37,
+      "AU9": 1.0,
+      "AU16": 0.66
+    }
+  },
+  "metadata": {
+    "source": "RAF-DB",
+    "normalized": false,
+    "basic_emotions_only": false
+  }
+}
