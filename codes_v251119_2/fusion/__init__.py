@@ -2,6 +2,6 @@
 Multimodal Fusion Modules
 """
 
-from .network import UnimodalEncoder, MultimodalHypergraphLayer
+from .hypergraph_fusion import UnimodalEncoder, MultimodalHypergraphLayer
 
 __all__ = ['UnimodalEncoder', 'MultimodalHypergraphLayer']
