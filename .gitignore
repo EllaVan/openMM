@@ -11,6 +11,7 @@ codes_v251112/unimodal_pretrainedModel/
 codes_v251112/unimodal_utterance/
 
 # for multimodal feature fuion
+codes_v251112/materials/
 codes_v251112/hyper_fusion/
 codes_v251112/fusion/__pycache__
 outputs/

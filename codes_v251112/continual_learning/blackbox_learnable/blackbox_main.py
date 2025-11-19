@@ -29,7 +29,7 @@ from continual_learning.au_emotion_network import AUEmotionNetwork
 from continual_learning.domain_splitter import DomainSplitter, create_predefined_task_sequence
 from continual_learning.metrics import ContinualLearningMetrics
 from continual_learning.consistency_checker import ConsistencyStrategy
-from hyper_fusion.dataloader import load_mosei_data
+from fusion.dataloader import load_mosei_data
 
 
 def parse_args():

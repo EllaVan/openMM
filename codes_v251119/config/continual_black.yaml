@@ -1,0 +1,91 @@
+# 黑盒持续
+
+data_para:
+  dataset: MOSEI
+  data_dir: /media/sda/wf/openMM/codes_v251112/data/mosei_utterance_features
+
+priori_para:
+  au_prior_path: /media/sda/wf/openMM/codes_v251119/materials/au_emo_prior.json
+  num_aus: 23
+  prior_strength: 0.1
+
+task:
+  task_sequence: 'custom' # 'demo', 'full', 'custom'
+  task_config_path: None  # 如果task_sequence是'custom'，则指定任务配置文件路径
+  exclude_neutral: true
+
+task1:
+  name: MOSEI
+  data_dir: /media/sda/wf/openMM/codes_v251112/data/mosei_utterance_features
+  seen_emotions:
+    happy: 0
+    sad: 1
+  unseen_emotions:
+    surprise: 5
+    disgust: 3
+  train_ratio: 0.7
+  merge_train_dev: true
+
+task2:
+  name: MOSEI
+  data_dir: /media/sda/wf/openMM/codes_v251112/data/mosei_utterance_features
+  seen_emotions:
+    happy: 0
+    anger: 2
+  unseen_emotions:
+    fear: 4
+  train_ratio: 0.7
+  merge_train_dev: true
+
+task3:
+  name: MELD
+  data_dir: /media/sda/wf/openMM/codes_v251112/data/meld_utterance_features
+  seen_emotions:
+    anger: 2
+    surprise: 5
+    joy: 6
+  unseen_emotions:
+    disgust: 3
+    fear: 4
+  train_ratio: 0.7
+  merge_train_dev: true
+
+dataloader:
+  batch_size: 32
+  num_workers: 4
+  shuffle_train: true
+  pin_memory: true
+
+fusion:
+  text_dim: 768
+  audio_dim: 768 
+  video_dim: 768
+  encoder_hidden_dim: 256
+  num_hyperedges: 64
+  num_conv_layers: 2
+
+continual:
+  use_ewc: true
+  ewc_lambda: 1000.0
+  matrix_reg_lambda: 0.1
+  consistency_strategy: 'majority' # choices=['all_agree', 'majority', 'weighted_vote', 'entropy_threshold', 'combined'] #'distill' # 'none', 'distill', 'lwf'
+  min_confidence: 0.8
+
+loss: 
+  seen_loss_weight: 1.0
+  unseen_loss_weight: 0.3
+
+output_para:
+  save_dir: ./continual_checkpoints
+  log_dir: ./continual_logs
+  log_interval: 10
+
+general_para:
+  setting: black
+  device: cuda:0
+  seed: 2025
+  batch_size: 32
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  epochs_per_task: 20
+  total_epochs: 100

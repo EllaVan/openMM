@@ -30,7 +30,7 @@ from continual_learning import (
     load_au_emo_prior,
     ConsistencyStrategy
 )
-from hyper_fusion.dataloader import load_mosei_data
+from fusion.dataloader import load_mosei_data
 
 
 def parse_args():
