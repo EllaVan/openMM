@@ -20,7 +20,7 @@ from pathlib import Path
 # 添加父目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fusion.network import UnimodalEncoder, MultimodalHypergraphLayer
+from fusion.hypergraph_fusion import UnimodalEncoder, MultimodalHypergraphLayer
 from core.learnable_matrix import LearnableAUEMOMatrix
 
 
