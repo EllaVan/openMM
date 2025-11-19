@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Optional
+import numpy as np
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fusion.network import UnimodalEncoder, MultimodalHypergraphLayer
+from core.learnable_matrix import LearnableAUEMOMatrix
 
 
 class AUPredictor(nn.Module):
@@ -124,6 +126,9 @@ class AUEmotionNetwork(nn.Module):
         num_hyperedges: int = 64,
         num_conv_layers: int = 2,
         dropout: float = 0.1,
+        # AU-EMO矩阵
+        au_emo_prior: Optional[np.ndarray] = None,
+        prior_strength: float = 0.1,
         # 设备
         device: str = 'cuda'
     ):
@@ -182,17 +187,14 @@ class AUEmotionNetwork(nn.Module):
             dropout=dropout
         )
 
-        # 5. AU-EMO矩阵（外部注入）
-        self.au_emo_matrix = None
-
-    def set_au_emo_matrix(self, au_emo_matrix):
-        """
-        设置AU-EMO矩阵
-
-        Args:
-            au_emo_matrix: LearnableAUEMOMatrix实例
-        """
-        self.au_emo_matrix = au_emo_matrix
+        # 5. AU-EMO可学习矩阵
+        self.au_emo_matrix = LearnableAUEMOMatrix(
+            num_aus=num_aus,
+            num_emotions=num_emotions,
+            prior_p_au_given_emo=au_emo_prior,
+            prior_strength=prior_strength,
+            device=device
+        )
 
     def forward(
         self,
@@ -230,11 +232,7 @@ class AUEmotionNetwork(nn.Module):
         au_probs = self.au_predictor(fused_features)
 
         # 4. 通过AU-EMO矩阵预测情绪（主路径）
-        if self.au_emo_matrix is not None:
-            emo_from_au = self.au_emo_matrix(au_probs)
-        else:
-            # 如果没有矩阵，返回零向量
-            emo_from_au = torch.zeros(au_probs.size(0), self.num_emotions, device=au_probs.device)
+        emo_from_au = self.au_emo_matrix(au_probs)
 
         # 5. 直接情绪分类（辅助路径）
         emo_direct = self.emotion_classifier(fused_features)
