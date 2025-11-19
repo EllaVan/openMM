@@ -1,0 +1,19 @@
+"""
+核心模块
+"""
+
+from .network import AUEmotionNetwork, AUPredictor, DirectEmotionClassifier
+from .learnable_matrix import LearnableAUEMOMatrix, load_au_emo_prior
+from .consistency_checker import MultimodalConsistencyChecker, ConsistencyStrategy
+from .ewc import EWC
+
+__all__ = [
+    'AUEmotionNetwork',
+    'AUPredictor',
+    'DirectEmotionClassifier',
+    'LearnableAUEMOMatrix',
+    'load_au_emo_prior',
+    'MultimodalConsistencyChecker',
+    'ConsistencyStrategy',
+    'EWC'
+]

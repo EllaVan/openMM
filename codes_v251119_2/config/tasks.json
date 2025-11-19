@@ -1,0 +1,70 @@
+{
+  "description": "Three-task cross-domain zero-shot continual learning",
+  "num_tasks": 3,
+  "emotion_id_mapping": {
+    "happy": 0,
+    "sad": 1,
+    "anger": 2,
+    "disgust": 3,
+    "fear": 4,
+    "surprise": 5,
+    "joy": 6,
+    "neutral": 7
+  },
+  "tasks": [
+    {
+      "task_id": 0,
+      "task_name": "Task0_MOSEI_Basic_Emotions",
+      "dataset_name": "MOSEI",
+      "data_dir": "/home/user/openMM/output/mosei_features",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1
+      },
+      "unseen_emotions": {
+        "surprise": 5,
+        "disgust": 3
+      },
+      "description": "Task 0: MOSEI dataset, learn happy and sad, encounter surprise and disgust"
+    },
+    {
+      "task_id": 1,
+      "task_name": "Task1_MOSEI_Expand_Emotions",
+      "dataset_name": "MOSEI",
+      "data_dir": "/home/user/openMM/output/mosei_features",
+      "seen_emotions": {
+        "happy": 0,
+        "anger": 2
+      },
+      "unseen_emotions": {
+        "fear": 4
+      },
+      "description": "Task 1: MOSEI dataset, happy already known, learn anger, encounter fear"
+    },
+    {
+      "task_id": 2,
+      "task_name": "Task2_MELD_Cross_Dataset",
+      "dataset_name": "MELD",
+      "data_dir": "/home/user/openMM/output/meld_features",
+      "seen_emotions": {
+        "anger": 2,
+        "surprise": 5,
+        "joy": 6
+      },
+      "unseen_emotions": {
+        "disgust": 3,
+        "fear": 4
+      },
+      "description": "Task 2: MELD dataset, cross-dataset continual learning with anger, surprise, joy"
+    }
+  ],
+  "notes": [
+    "Task 0: MOSEI - Basic emotions (happy, sad)",
+    "Task 1: MOSEI - Expand to anger, reuse happy",
+    "Task 2: MELD - Cross-dataset transfer with anger, surprise, joy (note: MELD uses 'joy' instead of 'happy')",
+    "Incremental label mapping:",
+    "  Task 0: happy->0, sad->1, surprise->2, disgust->3",
+    "  Task 1: happy->0 (keep), anger->4 (new), fear->5 (new)",
+    "  Task 2: anger->4 (keep), surprise->2 (keep), joy->6 (new), disgust->3, fear->5"
+  ]
+}
