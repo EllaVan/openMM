@@ -112,26 +112,23 @@ class MultimodalHypergraphLayer(nn.Module):
 
     def compute_cosine_similarity_weights(self, features: torch.Tensor) -> torch.Tensor:
         """
-        计算特征间的余弦相似度权重矩阵
+        计算特征间的余弦相似度权重矩阵，使用softmax转换为概率形式
 
         Args:
             features: [batch_size, feature_dim]
 
         Returns:
-            weights: [batch_size, batch_size] 归一化的相似度权重
+            weights: [batch_size, batch_size] softmax归一化的相似度概率
         """
-        # 归一化
+        # L2归一化
         features_norm = F.normalize(features, p=2, dim=1)
 
-        # 余弦相似度
+        # 余弦相似度矩阵
         similarity = torch.mm(features_norm, features_norm.t())  # [N, N]
 
-        # ReLU去除负值，只保留正相似度
-        similarity = F.relu(similarity)
-
-        # 行归一化（每个节点的权重和为1）
-        row_sum = similarity.sum(dim=1, keepdim=True) + 1e-10
-        weights = similarity / row_sum
+        # 使用softmax转换为概率形式（沿行方向归一化）
+        # 每行表示一个节点与其他节点的连接概率分布
+        weights = F.softmax(similarity, dim=1)  # [N, N]
 
         return weights
 
