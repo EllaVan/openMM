@@ -9,9 +9,9 @@ priori_para:
   num_aus: 23
   prior_strength: 0.1
 
-task:
+task_para:
   task_sequence: 'custom' # 'demo', 'full', 'custom'
-  task_config_path: None  # 如果task_sequence是'custom'，则指定任务配置文件路径
+  task_config_path: /media/sda/wf/openMM/codes_v251119/config/task_config.json  # 如果task_sequence是'custom'，则指定任务配置文件路径
   exclude_neutral: true
 
 task1:

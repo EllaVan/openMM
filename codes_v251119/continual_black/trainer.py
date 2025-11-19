@@ -28,4 +28,9 @@ class Trainer():
         self.logger.info(f"AUs: {len(au_names)}")
         self.logger.info(f"Emotions: {emotion_names}")
 
+        if cfg.task_para.task_config_path:
+            tasks = DomainSplitter.load_task_configs(args.task_config_path)
+        else:
+            tasks = create_predefined_task_sequence(args.task_sequence, args.dataset)
+
         self.dataloaders = create_emotion_dataloaders(self.logger, self.cfg)
