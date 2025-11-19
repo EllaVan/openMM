@@ -63,11 +63,11 @@ class LearnableAUEMOMatrix(nn.Module):
         # 初始化 P(AU|EMO) 先验矩阵
         if prior_p_au_given_emo is None:
             # 均匀先验
-            prior_p_au_emo = np.ones((num_aus, num_emotions)) / num_aus
+            prior_p_au_emo = np.ones((num_emotions, num_aus)) / num_aus
         else:
             prior_p_au_emo = np.array(prior_p_au_given_emo)
-            assert prior_p_au_emo.shape == (num_aus, num_emotions), \
-                f"先验矩阵形状不匹配: 期望 {(num_aus, num_emotions)}, 实际 {prior_p_au_emo.shape}"
+            assert prior_p_au_emo.shape == (num_emotions, num_aus), \
+                f"先验矩阵形状不匹配: 期望 {(num_emotions, num_aus)}, 实际 {prior_p_au_emo.shape}"
 
         # 将概率转换为logits用于参数化
         # logits在优化过程中是无约束的

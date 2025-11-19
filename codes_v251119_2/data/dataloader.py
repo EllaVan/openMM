@@ -310,8 +310,8 @@ def create_task_dataloaders(
         task_info: 任务信息字典
     """
     # 设置随机种子
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+    # np.random.seed(seed)
+    # torch.manual_seed(seed)
 
     # 1. 加载任务配置
     print(f"\n{'='*80}")
