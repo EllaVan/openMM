@@ -1,0 +1,45 @@
+{
+  "num_tasks": 3,
+  "exclude_neutral": true,
+  "random_seed": 42,
+  "class_distribution": {
+    "happy": 1500,
+    "sad": 1200,
+    "angry": 800,
+    "surprise": 600,
+    "disgust": 400,
+    "fear": 300
+  },
+  "tasks": [
+    {
+      "task_id": 0,
+      "task_name": "MOSEI_Task0",
+      "dataset_name": "MOSEI",
+      "seen_classes": [0, 1],
+      "unseen_classes": [2],
+      "seen_class_names": ["happy", "sad"],
+      "unseen_class_names": ["angry"],
+      "data_split": null
+    },
+    {
+      "task_id": 1,
+      "task_name": "MOSEI_Task1",
+      "dataset_name": "MOSEI",
+      "seen_classes": [0],
+      "unseen_classes": [4, 5],
+      "seen_class_names": ["happy"],
+      "unseen_class_names": ["disgust", "fear"],
+      "data_split": null
+    },
+    {
+      "task_id": 2,
+      "task_name": "MOSEI_Task2",
+      "dataset_name": "MOSEI",
+      "seen_classes": [0, 1],
+      "unseen_classes": [3],
+      "seen_class_names": ["happy", "sad"],
+      "unseen_class_names": ["surprise"],
+      "data_split": null
+    }
+  ]
+}
