@@ -1,16 +1,10 @@
 """
-Learnable AU-EMO Probability Matrix (Blackbox Approach)
+Learnable AU-EMO Probability Matrix (Correct Mathematical Framework)
 
-This module implements an end-to-end learnable AU-EMO association matrix
-using nn.Parameter for gradient-based optimization.
+正确的数学框架：
+p(x, ∪{au}^x, emo_k) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k) * P(EMO_k) / Σ_k P(AU_i|EMO_k)]
 
-Key Features:
-1. Matrix parameters are directly optimized via backpropagation
-2. Initialized with psychology prior
-3. Regularization maintains connection to prior
-4. No explicit probabilistic interpretation during training
-5. Can extract probability matrix for analysis
-6. Simpler and faster than Bayesian approach
+直接使用 P(AU|EMO) 先验矩阵，不需要转换到 P(EMO|AU)
 """
 
 import torch
@@ -19,59 +13,36 @@ import torch.nn.functional as F
 import numpy as np
 from typing import Optional, Dict, Tuple
 import json
-from pathlib import Path
 
 
 class LearnableAUEMOMatrix(nn.Module):
     """
-    Learnable AU-EMO Matrix for Blackbox End-to-End Training
+    可学习的AU-EMO矩阵（基于正确的概率推理）
 
-    Unlike the whitebox Beta-Bernoulli approach, this matrix is directly
-    optimized via gradient descent. The parameters can be any real values,
-    and are converted to probabilities when needed.
+    数学框架：
+    ----------
+    先验矩阵：P(AU|EMO) [num_aus, num_emotions]
+    输入：P(au_i|x) - 从样本x预测的AU概率 [batch, num_aus]
+    输出：P(emo_k|x) - 情绪概率
 
-    Mathematical Framework:
-    -----------------------
-    Matrix stores logits M_ij for each AU-EMO pair
+    推理公式：
+    p(emo_k | x) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k)] * P(EMO_k)
 
-    P(EMO_j|AU_i) = softmax_j(M_ij)  (normalize across emotions per AU)
+    取对数避免数值下溢：
+    log p(emo_k | x) = Σ_i log[P(au_i|x) * P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k)] + log P(EMO_k)
 
-    For prediction:
-        P(EMO_j|sample) = Σ_i P(EMO_j|AU_i) * P(AU_i|sample)
-                        = au_probs @ softmax(M, dim=1)
-
-    Training:
-        - Matrix M is nn.Parameter
-        - Optimized via backpropagation like other network weights
-        - Regularized towards prior to prevent drift
-
-    Advantages:
-    -----------
-    + Simpler implementation (no EM, no Bayesian updates)
-    + Faster training (single pass backprop)
-    + More flexible (can learn complex patterns)
-    + End-to-end optimization with rest of network
-
-    Disadvantages:
-    --------------
-    - Less interpretable than Beta-Bernoulli
-    - No uncertainty quantification
-    - Requires careful regularization to maintain prior knowledge
-
-    Parameters:
-    -----------
+    参数：
+    ------
     num_aus : int
-        Number of Action Units (e.g., 23)
+        AU数量（例如23）
     num_emotions : int
-        Number of emotion classes (e.g., 6)
-    prior_p_au_given_emo : np.ndarray [num_aus, num_emotions], optional
-        Psychology prior P(AU|EMO) matrix
-        Used to initialize matrix and for regularization
+        情绪类别数量（例如6）
+    prior_p_au_given_emo : np.ndarray [num_aus, num_emotions]
+        心理学先验 P(AU|EMO) 矩阵
     prior_strength : float
-        Regularization strength towards prior
-        Higher = stay closer to prior
+        正则化强度
     device : str
-        Device for tensors
+        设备
     """
 
     def __init__(
@@ -89,42 +60,41 @@ class LearnableAUEMOMatrix(nn.Module):
         self.prior_strength = prior_strength
         self.device_str = device
 
-        # Initialize prior P(AU|EMO)
+        # 初始化 P(AU|EMO) 先验矩阵
         if prior_p_au_given_emo is None:
-            # Uniform prior
-            prior_p_au_emo = np.ones((num_emotions, num_aus)) / num_emotions
+            # 均匀先验
+            prior_p_au_emo = np.ones((num_aus, num_emotions)) / num_aus
         else:
             prior_p_au_emo = np.array(prior_p_au_given_emo)
-            assert prior_p_au_emo.shape == (num_emotions, num_aus), \
-                f"Prior shape mismatch: expected {(num_aus, num_emotions)}, got {prior_p_au_emo.shape}"
+            assert prior_p_au_emo.shape == (num_aus, num_emotions), \
+                f"先验矩阵形状不匹配: 期望 {(num_aus, num_emotions)}, 实际 {prior_p_au_emo.shape}"
 
-        # Convert P(AU|EMO) to P(EMO|AU) for initialization
-        # Assume uniform P(EMO), so P(EMO|AU) ∝ P(AU|EMO)
-        prior_p_emo_au = prior_p_au_emo.copy()
-        row_sums = prior_p_emo_au.sum(axis=1, keepdims=True)
-        prior_p_emo_au = prior_p_emo_au / (row_sums + 1e-10)
+        # 将概率转换为logits用于参数化
+        # logits在优化过程中是无约束的
+        prior_logits = np.log(prior_p_au_emo + 1e-10)
 
-        # Convert probabilities to logits for initialization
-        # Use inverse softmax: logit = log(prob)
-        prior_logits = np.log(prior_p_emo_au + 1e-10)
-
-        # Store prior as buffer (not learnable)
+        # 存储先验（不可学习）
         self.register_buffer(
             'prior_logits',
             torch.tensor(prior_logits, dtype=torch.float32, device=device)
         )
         self.register_buffer(
-            'prior_probs',
-            torch.tensor(prior_p_emo_au, dtype=torch.float32, device=device)
+            'prior_p_au_given_emo',
+            torch.tensor(prior_p_au_emo, dtype=torch.float32, device=device)
         )
 
-        # Learnable matrix (nn.Parameter)
-        # Initialize with prior logits
+        # 可学习矩阵参数（初始化为先验logits）
         self.matrix_logits = nn.Parameter(
             torch.tensor(prior_logits, dtype=torch.float32, device=device)
         )
 
-        # Statistics
+        # 情绪先验 P(EMO_k) - 默认均匀分布
+        self.register_buffer(
+            'emo_prior',
+            torch.ones(num_emotions, dtype=torch.float32, device=device) / num_emotions
+        )
+
+        # 统计信息
         self.register_buffer(
             'update_count',
             torch.tensor(0, dtype=torch.long, device=device)
@@ -132,59 +102,87 @@ class LearnableAUEMOMatrix(nn.Module):
 
     def get_probability_matrix(self) -> torch.Tensor:
         """
-        Get current P(EMO|AU) probability matrix
+        获取当前的 P(AU|EMO) 概率矩阵
 
-        Applies softmax across emotions for each AU to ensure valid probabilities
+        对logits在AU维度（dim=0）进行归一化，确保：
+        Σ_i P(AU_i|EMO_k) = 1 对于每个情绪k
 
         Returns:
         --------
-        p_emo_given_au : torch.Tensor [num_aus, num_emotions]
-            P(EMO_j|AU_i) for each AU-EMO pair
+        p_au_given_emo : torch.Tensor [num_aus, num_emotions]
+            P(AU_i|EMO_k) 概率矩阵
         """
-        # Softmax across emotions (dim=1) for each AU
-        p_emo_given_au = F.softmax(self.matrix_logits, dim=1)
-        return p_emo_given_au
+        # 对每列（每个情绪）在AU维度上进行softmax
+        p_au_given_emo = F.softmax(self.matrix_logits, dim=0)
+        return p_au_given_emo
 
-    def forward(self, au_probs: torch.Tensor) -> torch.Tensor:
+    def forward(self, au_probs: torch.Tensor, emo_prior: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Predict emotion probabilities from AU probabilities
+        从AU概率预测情绪概率
 
-        P(EMO_j|sample) = Σ_i P(EMO_j|AU_i) * P(AU_i|sample)
+        使用正确的公式：
+        p(emo_k | x) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k)] * P(EMO_k)
 
         Parameters:
         -----------
         au_probs : torch.Tensor [batch_size, num_aus]
-            AU activation probabilities from AU predictor
+            从样本预测的AU激活概率 P(au_i|x)
+        emo_prior : torch.Tensor [num_emotions], optional
+            情绪先验概率 P(EMO_k)，默认使用均匀分布
 
         Returns:
         --------
         emo_logits : torch.Tensor [batch_size, num_emotions]
-            Emotion prediction logits
+            情绪预测对数概率
         """
-        p_emo_given_au = self.get_probability_matrix()  # [num_aus, num_emotions]
+        # 获取 P(AU|EMO) 矩阵 [num_aus, num_emotions]
+        p_au_given_emo = self.get_probability_matrix()
 
-        # Matrix multiplication
-        emo_logits = torch.matmul(au_probs, p_emo_given_au)  # [batch, num_emotions]
+        # 使用先验
+        if emo_prior is None:
+            emo_prior = self.emo_prior
+
+        # 计算分母：Σ_k P(AU_i|EMO_k) [num_aus]
+        # 对每个AU i，求所有情绪k的P(AU_i|EMO_k)之和
+        denominator = p_au_given_emo.sum(dim=1, keepdim=True)  # [num_aus, 1]
+
+        # 归一化：P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k) [num_aus, num_emotions]
+        normalized = p_au_given_emo / (denominator + 1e-10)
+
+        # 计算：P(au_i|x) * normalized
+        # au_probs: [batch, num_aus]
+        # normalized: [num_aus, num_emotions]
+        # 结果: [batch, num_aus, num_emotions]
+        au_probs_expanded = au_probs.unsqueeze(2)  # [batch, num_aus, 1]
+        weighted = au_probs_expanded * normalized.unsqueeze(0)  # [batch, num_aus, num_emotions]
+
+        # 取对数并求和：Σ_i log[P(au_i|x) * normalized]
+        # [batch, num_emotions]
+        emo_logits = torch.log(weighted + 1e-10).sum(dim=1)
+
+        # 加上情绪先验的对数：log P(EMO_k)
+        emo_logits = emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
 
         return emo_logits
 
     def compute_regularization_loss(self) -> torch.Tensor:
         """
-        Compute regularization loss towards prior
+        计算正则化损失（向先验正则化）
 
-        Uses KL divergence: D_KL(current || prior)
+        使用KL散度：D_KL(current || prior)
 
         Returns:
         --------
-        reg_loss : torch.Tensor (scalar)
-            Regularization loss
+        reg_loss : torch.Tensor (标量)
+            正则化损失
         """
         current_probs = self.get_probability_matrix()
 
-        # KL divergence: D_KL(P || Q) = Σ P(x) log(P(x) / Q(x))
+        # KL散度：D_KL(P || Q) = Σ P(x) log(P(x) / Q(x))
+        # 在AU维度和EMO维度上求和
         kl_div = F.kl_div(
             torch.log(current_probs + 1e-10),
-            self.prior_probs,
+            self.prior_p_au_given_emo,
             reduction='batchmean'
         )
 
@@ -192,43 +190,42 @@ class LearnableAUEMOMatrix(nn.Module):
 
     def compute_entropy_regularization(self, strength: float = 0.01) -> torch.Tensor:
         """
-        Entropy regularization to prevent overconfident predictions
-
-        Higher entropy = more uncertain = less overconfident
+        熵正则化，防止过拟合
 
         Parameters:
         -----------
         strength : float
-            Regularization strength
+            正则化强度
 
         Returns:
         --------
-        entropy_loss : torch.Tensor (scalar)
-            Negative entropy (minimize this to maximize entropy)
+        entropy_loss : torch.Tensor (标量)
+            负熵（最小化此项以最大化熵）
         """
         probs = self.get_probability_matrix()
 
-        # Entropy: H = -Σ p(x) log p(x)
-        entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=1).mean()
+        # 熵：H = -Σ p(x) log p(x)
+        entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=0).mean()
 
-        # We want to maximize entropy, so minimize negative entropy
+        # 最大化熵 = 最小化负熵
         return -strength * entropy
 
     def get_statistics(self) -> Dict:
-        """Get comprehensive statistics"""
+        """获取统计信息"""
         current_probs = self.get_probability_matrix()
 
-        # KL from prior
+        # KL散度
         kl_div = F.kl_div(
             torch.log(current_probs + 1e-10),
-            self.prior_probs,
+            self.prior_p_au_given_emo,
             reduction='batchmean'
         ).item()
 
-        # Average entropy per AU
-        entropy = -(current_probs * torch.log(current_probs + 1e-10)).sum(dim=1).mean().item()
+        # 平均熵（每个情绪列的熵）
+        entropy_per_emo = -(current_probs * torch.log(current_probs + 1e-10)).sum(dim=0)
+        avg_entropy = entropy_per_emo.mean().item()
 
-        # Logits statistics
+        # Logits统计
         logits_mean = self.matrix_logits.mean().item()
         logits_std = self.matrix_logits.std().item()
         logits_max = self.matrix_logits.max().item()
@@ -237,7 +234,7 @@ class LearnableAUEMOMatrix(nn.Module):
         return {
             'avg_probability': current_probs.mean().item(),
             'kl_from_prior': kl_div,
-            'avg_entropy_per_au': entropy,
+            'avg_entropy_per_emotion': avg_entropy,
             'logits_mean': logits_mean,
             'logits_std': logits_std,
             'logits_max': logits_max,
@@ -246,21 +243,35 @@ class LearnableAUEMOMatrix(nn.Module):
         }
 
     def reset_to_prior(self):
-        """Reset matrix to prior (hard reset)"""
+        """重置矩阵到先验（硬重置）"""
         self.matrix_logits.data.copy_(self.prior_logits)
-        print("Matrix reset to prior")
+        print("矩阵已重置到先验")
 
     def soft_reset_to_prior(self, strength: float = 0.1):
-        """Soft reset: interpolate current matrix with prior"""
+        """软重置：当前矩阵与先验插值"""
         self.matrix_logits.data.mul_(1 - strength).add_(self.prior_logits * strength)
-        print(f"Matrix soft reset (strength={strength:.3f})")
+        print(f"矩阵软重置（强度={strength:.3f}）")
+
+    def update_emo_prior(self, new_prior: torch.Tensor):
+        """
+        更新情绪先验 P(EMO_k)
+
+        Parameters:
+        -----------
+        new_prior : torch.Tensor [num_emotions]
+            新的情绪先验概率
+        """
+        assert new_prior.shape == (self.num_emotions,)
+        assert torch.allclose(new_prior.sum(), torch.tensor(1.0))
+        self.emo_prior.copy_(new_prior)
 
     def save(self, filepath: str):
-        """Save matrix state"""
+        """保存矩阵状态"""
         state = {
             'matrix_logits': self.matrix_logits.detach().cpu().numpy(),
             'prior_logits': self.prior_logits.cpu().numpy(),
-            'prior_probs': self.prior_probs.cpu().numpy(),
+            'prior_p_au_given_emo': self.prior_p_au_given_emo.cpu().numpy(),
+            'emo_prior': self.emo_prior.cpu().numpy(),
             'update_count': self.update_count.item(),
             'num_aus': self.num_aus,
             'num_emotions': self.num_emotions,
@@ -268,10 +279,10 @@ class LearnableAUEMOMatrix(nn.Module):
         }
 
         np.savez(filepath, **state)
-        print(f"Learnable AU-EMO matrix saved to {filepath}")
+        print(f"可学习AU-EMO矩阵已保存到 {filepath}")
 
     def load(self, filepath: str):
-        """Load matrix state"""
+        """加载矩阵状态"""
         state = np.load(filepath)
 
         assert state['num_aus'] == self.num_aus
@@ -280,11 +291,15 @@ class LearnableAUEMOMatrix(nn.Module):
         self.matrix_logits.data.copy_(
             torch.tensor(state['matrix_logits'], device=self.device_str)
         )
+        if 'emo_prior' in state:
+            self.emo_prior.copy_(
+                torch.tensor(state['emo_prior'], device=self.device_str)
+            )
         self.update_count.copy_(
             torch.tensor(state['update_count'], device=self.device_str)
         )
 
-        print(f"Learnable AU-EMO matrix loaded from {filepath}")
+        print(f"可学习AU-EMO矩阵已从 {filepath} 加载")
 
     def visualize_matrix(
         self,
@@ -293,30 +308,30 @@ class LearnableAUEMOMatrix(nn.Module):
         show_logits: bool = False
     ) -> str:
         """
-        Create text visualization of P(EMO|AU) matrix
+        可视化 P(AU|EMO) 矩阵
 
         Parameters:
         -----------
         au_names : list, optional
-            Names of AUs
+            AU名称列表
         emotion_names : list, optional
-            Names of emotions
+            情绪名称列表
         show_logits : bool
-            Whether to show logits instead of probabilities
+            是否显示logits而非概率
 
         Returns:
         --------
         visualization : str
-            Formatted text table
+            格式化的文本表格
         """
         import io
 
         if show_logits:
             matrix = self.matrix_logits.detach().cpu().numpy()
-            title = "Matrix Logits"
+            title = "矩阵 Logits"
         else:
             matrix = self.get_probability_matrix().detach().cpu().numpy()
-            title = "P(EMO|AU) Probabilities"
+            title = "P(AU|EMO) 概率矩阵"
 
         if au_names is None:
             au_names = [f"AU{i}" for i in range(self.num_aus)]
@@ -325,52 +340,40 @@ class LearnableAUEMOMatrix(nn.Module):
 
         output = io.StringIO()
 
-        # Title
+        # 标题
         output.write(f"{title}\n")
         output.write("=" * (15 + 12 * self.num_emotions) + "\n")
 
-        # Header
+        # 表头
         output.write(f"{'AU':<15}")
         for emo_name in emotion_names:
             output.write(f"{emo_name:>12}")
         output.write("\n")
         output.write("-" * (15 + 12 * self.num_emotions) + "\n")
 
-        # Rows
+        # 行
         for i, au_name in enumerate(au_names):
             output.write(f"{au_name:<15}")
             for j in range(self.num_emotions):
                 output.write(f"{matrix[i, j]:>12.4f}")
             output.write("\n")
 
+        # 列和（应该都接近1.0）
+        output.write("-" * (15 + 12 * self.num_emotions) + "\n")
+        output.write(f"{'列和':<15}")
+        col_sums = matrix.sum(axis=0)
+        for j in range(self.num_emotions):
+            output.write(f"{col_sums[j]:>12.4f}")
+        output.write("\n")
+
         return output.getvalue()
-
-    def get_p_au_given_emo_estimate(self) -> torch.Tensor:
-        """
-        Estimate P(AU|EMO) from current P(EMO|AU)
-
-        This is an approximation assuming uniform P(AU)
-
-        Returns:
-        --------
-        p_au_given_emo : torch.Tensor [num_aus, num_emotions]
-        """
-        p_emo_given_au = self.get_probability_matrix()  # [num_aus, num_emotions]
-
-        # Reverse Bayes: P(AU|EMO) ∝ P(EMO|AU)
-        # Normalize across AUs for each emotion
-        p_au_given_emo = p_emo_given_au.t()  # [num_emotions, num_aus]
-        p_au_given_emo = p_au_given_emo / (p_au_given_emo.sum(dim=1, keepdim=True) + 1e-10)
-        p_au_given_emo = p_au_given_emo.t()  # [num_aus, num_emotions]
-
-        return p_au_given_emo
 
 
 def load_au_emo_prior(filepath: str) -> Tuple[np.ndarray, list, list]:
     """
-    Load AU-EMO prior from JSON file
+    从JSON文件加载AU-EMO先验
 
-    Expected format:
+    期望格式：
     {
         "au_names": ["AU1", "AU2", ...],
         "emotion_names": ["happy", "sad", ...],
@@ -380,7 +383,7 @@ def load_au_emo_prior(filepath: str) -> Tuple[np.ndarray, list, list]:
     Returns:
     --------
     prior_matrix : np.ndarray [num_aus, num_emotions]
-        P(AU|EMO) matrix
+        P(AU|EMO) 矩阵
     au_names : list
     emotion_names : list
     """
@@ -391,27 +394,30 @@ def load_au_emo_prior(filepath: str) -> Tuple[np.ndarray, list, list]:
     au_names = data['au_names']
     emotion_names = data['emotion_names']
 
-    print(f"Loaded P(AU|EMO) prior from {filepath}")
-    print(f"  Shape: {prior_matrix.shape}")
-    print(f"  AUs: {len(au_names)}")
-    print(f"  Emotions: {len(emotion_names)}")
+    print(f"已从 {filepath} 加载 P(AU|EMO) 先验")
+    print(f"  形状: {prior_matrix.shape}")
+    print(f"  AU数量: {len(au_names)}")
+    print(f"  情绪数量: {len(emotion_names)}")
 
     return prior_matrix, au_names, emotion_names
 
 
 if __name__ == "__main__":
-    # Test learnable matrix
-    print("Testing Learnable AU-EMO Matrix...")
+    # 测试可学习矩阵
+    print("测试可学习AU-EMO矩阵...")
 
-    # Create simple prior
+    # 创建简单先验
     num_aus, num_emotions = 3, 2
     prior_p = np.array([
-        [0.8, 0.2],  # AU0: high for EMO0, low for EMO1
-        [0.3, 0.7],  # AU1: low for EMO0, high for EMO1
-        [0.5, 0.5]   # AU2: neutral
+        [0.8, 0.2],  # AU0: 对EMO0有0.8概率，对EMO1有0.2概率
+        [0.3, 0.7],  # AU1: 对EMO0有0.3概率，对EMO1有0.7概率
+        [0.5, 0.5]   # AU2: 中性
     ])
 
-    # Initialize matrix
+    # 归一化（确保每列和为1）
+    prior_p = prior_p / prior_p.sum(axis=0, keepdims=True)
+
+    # 初始化矩阵
     matrix = LearnableAUEMOMatrix(
         num_aus=num_aus,
         num_emotions=num_emotions,
@@ -420,30 +426,30 @@ if __name__ == "__main__":
         device='cpu'
     )
 
-    print("\nInitial P(EMO|AU):")
+    print("\n初始 P(AU|EMO):")
     print(matrix.get_probability_matrix())
 
-    print("\nInitial logits:")
+    print("\n初始 logits:")
     print(matrix.matrix_logits)
 
-    # Test prediction
-    au_probs = torch.tensor([[0.9, 0.1, 0.5]])  # AU0 active
-    emo_pred = matrix(au_probs)
-    print(f"\nPrediction test:")
-    print(f"  AU probs: {au_probs}")
-    print(f"  EMO logits: {emo_pred}")
-    print(f"  EMO probs: {F.softmax(emo_pred, dim=1)}")
+    # 测试预测
+    au_probs = torch.tensor([[0.9, 0.1, 0.5]])  # AU0高激活
+    emo_logits = matrix(au_probs)
+    print(f"\n预测测试:")
+    print(f"  AU概率: {au_probs}")
+    print(f"  情绪logits: {emo_logits}")
+    print(f"  情绪概率: {F.softmax(emo_logits, dim=1)}")
 
-    # Test regularization
+    # 测试正则化
     reg_loss = matrix.compute_regularization_loss()
-    print(f"\nRegularization loss: {reg_loss.item():.6f}")
+    print(f"\n正则化损失: {reg_loss.item():.6f}")
 
-    # Test gradient flow
+    # 测试梯度流
     optimizer = torch.optim.Adam([matrix.matrix_logits], lr=0.01)
 
-    print("\nTesting gradient flow...")
+    print("\n测试梯度流...")
     for i in range(5):
-        # Dummy loss
+        # 虚拟损失
         au_probs_batch = torch.tensor([
             [0.9, 0.1, 0.5],
             [0.1, 0.9, 0.5],
@@ -458,13 +464,13 @@ if __name__ == "__main__":
         loss.backward()
         optimizer.step()
 
-        print(f"  Step {i+1}: loss={loss.item():.4f}")
+        print(f"  步骤 {i+1}: loss={loss.item():.4f}")
 
-    print("\nUpdated P(EMO|AU):")
+    print("\n更新后的 P(AU|EMO):")
     print(matrix.get_probability_matrix())
 
-    print("\nMatrix statistics:")
+    print("\n矩阵统计:")
     for k, v in matrix.get_statistics().items():
         print(f"  {k}: {v:.4f}")
 
-    print("\n✓ All tests passed!")
+    print("\n✓ 所有测试通过!")
