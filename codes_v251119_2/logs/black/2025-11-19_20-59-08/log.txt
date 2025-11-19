@@ -1,0 +1,64 @@
+2025-11-19 20:59:29,842 - INFO - ================================================================================
+2025-11-19 20:59:29,844 - INFO - 配置信息:
+2025-11-19 20:59:29,844 - INFO - ================================================================================
+2025-11-19 20:59:29,848 - INFO - task:
+  type: black
+  config_path: /media/sda/wf/openMM/codes_v251119_2/config/tasks.json
+  num_tasks: 3
+  exclude_neutral: true
+prior:
+  au_prior_path: /media/sda/wf/openMM/codes_v251119_2/materials/au_emo_prior.json
+  num_aus: 23
+  prior_strength: 0.1
+dataloader:
+  batch_size: 32
+  num_workers: 4
+  train_ratio: 0.8
+  shuffle_train: true
+  pin_memory: true
+network:
+  text_dim: 768
+  audio_dim: 768
+  video_dim: 768
+  encoder_hidden_dim: 256
+  encoder_output_dim: 256
+  hypergraph_hidden_dim: 256
+  num_hyperedges: 64
+  num_conv_layers: 2
+  dropout: 0.1
+continual_learning:
+  use_ewc: true
+  ewc_lambda: 1000.0
+  matrix_reg_lambda: 0.1
+  consistency_strategy: majority
+  min_confidence: 0.8
+  seen_loss_weight: 1.0
+  unseen_loss_weight: 0.3
+training:
+  epochs_per_task: 20
+  warmup_epochs: 3
+  learning_rate: 0.0001
+  matrix_learning_rate: 0.001
+  weight_decay: 1.0e-05
+  gradient_clip: 1.0
+output:
+  save_dir: /media/sda/wf/openMM/codes_v251119_2/checkpoints
+  log_dir: /media/sda/wf/openMM/codes_v251119_2/logs
+  log_interval: 10
+  save_frequency: 5
+system:
+  device: cuda:0
+  seed: 2025
+  num_workers: 4
+
+2025-11-19 20:59:29,849 - INFO - 
+--------------------------------------------------------------------------------
+2025-11-19 20:59:29,849 - INFO - 加载AU-EMO先验...
+2025-11-19 20:59:29,849 - INFO - --------------------------------------------------------------------------------
+2025-11-19 21:00:00,162 - INFO - 先验矩阵形状: (8, 26)
+2025-11-19 21:00:00,163 - INFO - AU数量: 20
+2025-11-19 21:00:00,163 - INFO - 情绪类别: ['happy', 'sad', 'surprise', 'anger', 'fear', 'disgust', 'joy']
+2025-11-19 21:00:00,163 - INFO - 
+--------------------------------------------------------------------------------
+2025-11-19 21:00:00,163 - INFO - 创建AU情绪识别网络（集成AU-EMO矩阵）...
+2025-11-19 21:00:00,164 - INFO - --------------------------------------------------------------------------------

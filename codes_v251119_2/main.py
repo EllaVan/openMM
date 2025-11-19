@@ -26,7 +26,7 @@ from core import (
 )
 from data import create_task_dataloaders, IncrementalLabelMapper
 from training import ContinualLearningTrainer
-from utils import seed_init, setup_logger, count_parameters
+from utils import seed_init, setup_logger, make_saving_folder_and_logger, count_parameters
 
 
 @hydra.main(version_base=None, config_path="config", config_name="continual_learning")
@@ -52,8 +52,9 @@ def main(cfg: DictConfig):
     print(f"\n使用设备: {device}")
 
     # 创建logger
-    log_file = os.path.join(cfg.output.log_dir, 'training.log')
-    logger = setup_logger('ContinualLearning', log_file)
+    # log_file = os.path.join(cfg.output.log_dir, 'training.log')
+    # logger = setup_logger('ContinualLearning', log_file)
+    logger, log_file = make_saving_folder_and_logger(cfg)
 
     logger.info("="*80)
     logger.info("配置信息:")

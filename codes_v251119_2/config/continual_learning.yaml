@@ -4,7 +4,8 @@
 
 # 任务配置
 task:
-  config_path: b
+  type: black
+  config_path: /media/sda/wf/openMM/codes_v251119_2/config/tasks.json
   num_tasks: 3
   exclude_neutral: true
 

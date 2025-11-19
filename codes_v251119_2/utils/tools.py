@@ -75,6 +75,33 @@ def setup_logger(
 
     return logger
 
+def make_saving_folder_and_logger(cfg):
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    father_folder_name = os.path.join(cfg.output.log_dir, cfg.task.type) # 实验总文件夹名称
+    if not os.path.exists(father_folder_name):
+        os.makedirs(father_folder_name, exist_ok=True)
+    folder_name = f"{timestamp}" # 本次实验文件夹名称
+
+    folder_path = os.path.join(father_folder_name, folder_name)
+    os.mkdir(folder_path)
+    logger = logging.getLogger()
+    logger.handlers = []
+    logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    log_file = f'{father_folder_name}/{folder_name}/log.txt'
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    # return father_folder_name, folder_name, logger
+    return logger, log_file
+
 
 def create_save_directory(base_dir: str, exp_name: str = None) -> Path:
     """
