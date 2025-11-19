@@ -1,0 +1,63 @@
+{
+  "dataset_name": "MOSEI",
+  "num_tasks": 3,
+  "exclude_neutral": true,
+  "data_dir": "../../output/mosei_features",
+  "tasks": [
+    {
+      "task_id": 0,
+      "task_name": "Task0_Happy_Sad_vs_Surprise_Disgust",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1
+      },
+      "unseen_emotions": {
+        "surprise": 3,
+        "disgust": 4
+      },
+      "description": "Task 0: Learn happy and sad, encounter surprise and disgust"
+    },
+    {
+      "task_id": 1,
+      "task_name": "Task1_Happy_Anger_vs_Fear",
+      "seen_emotions": {
+        "happy": 0,
+        "anger": 2
+      },
+      "unseen_emotions": {
+        "fear": 5
+      },
+      "description": "Task 1: Happy already known, learn anger, encounter fear"
+    },
+    {
+      "task_id": 2,
+      "task_name": "Task2_All_Emotions",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1,
+        "anger": 2,
+        "surprise": 3,
+        "disgust": 4,
+        "fear": 5
+      },
+      "unseen_emotions": {},
+      "description": "Task 2: All emotions become seen (evaluation task)"
+    }
+  ],
+  "emotion_id_mapping": {
+    "happy": 0,
+    "sad": 1,
+    "anger": 2,
+    "surprise": 3,
+    "disgust": 4,
+    "fear": 5,
+    "neutral": 6
+  },
+  "notes": [
+    "Original MOSEI labels: happy=0, sad=1, anger=2, surprise=3, disgust=4, fear=5, neutral=6",
+    "Incremental labels are assigned based on first appearance across tasks",
+    "Task 0: happy->0, sad->1, surprise->2, disgust->3",
+    "Task 1: happy->0 (reuse), anger->4 (new), fear->5 (new)",
+    "Task 2: All emotions with their assigned incremental labels"
+  ]
+}
