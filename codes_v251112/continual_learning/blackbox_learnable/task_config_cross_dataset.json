@@ -1,0 +1,86 @@
+{
+  "num_tasks": 4,
+  "exclude_neutral": true,
+  "default_data_dir": "../../output/mosei_features",
+  "default_dataset": "MOSEI",
+  "description": "Cross-dataset continual learning example: MOSEI -> MELD -> MOSEI -> MELD",
+  "tasks": [
+    {
+      "task_id": 0,
+      "task_name": "Task0_MOSEI_Basic_Emotions",
+      "dataset_name": "MOSEI",
+      "data_dir": "../../output/mosei_features",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1
+      },
+      "unseen_emotions": {
+        "anger": 2
+      },
+      "description": "Task 0: Start with MOSEI, basic emotions happy and sad"
+    },
+    {
+      "task_id": 1,
+      "task_name": "Task1_MELD_Expand_Emotions",
+      "dataset_name": "MELD",
+      "data_dir": "../../output/meld_features",
+      "seen_emotions": {
+        "happy": 0,
+        "surprise": 3
+      },
+      "unseen_emotions": {
+        "disgust": 4
+      },
+      "description": "Task 1: Switch to MELD, happy reused, add surprise"
+    },
+    {
+      "task_id": 2,
+      "task_name": "Task2_MOSEI_More_Emotions",
+      "dataset_name": "MOSEI",
+      "data_dir": "../../output/mosei_features",
+      "seen_emotions": {
+        "sad": 1,
+        "anger": 2,
+        "fear": 5
+      },
+      "unseen_emotions": {},
+      "description": "Task 2: Back to MOSEI, consolidate previous unseen classes"
+    },
+    {
+      "task_id": 3,
+      "task_name": "Task3_MELD_Final_Evaluation",
+      "dataset_name": "MELD",
+      "data_dir": "../../output/meld_features",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1,
+        "anger": 2,
+        "surprise": 3,
+        "disgust": 4,
+        "fear": 5
+      },
+      "unseen_emotions": {},
+      "description": "Task 3: Final evaluation on MELD with all emotions"
+    }
+  ],
+  "emotion_id_mapping": {
+    "happy": 0,
+    "sad": 1,
+    "anger": 2,
+    "surprise": 3,
+    "disgust": 4,
+    "fear": 5,
+    "neutral": 6
+  },
+  "notes": [
+    "Cross-dataset continual learning scenario",
+    "Alternates between MOSEI and MELD datasets",
+    "Tests domain adaptation and knowledge transfer",
+    "Incremental label mapping is unified across all datasets",
+    "Expected label mapping:",
+    "  Task 0: happy->0, sad->1, anger->2",
+    "  Task 1: happy->0 (keep), surprise->3 (new), disgust->4 (new)",
+    "  Task 2: sad->1, anger->2, fear->5 (new)",
+    "  Task 3: All emotions with consistent labels"
+  ]
+}

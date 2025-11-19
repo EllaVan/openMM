@@ -325,8 +325,11 @@ def create_task_dataloaders(
         raise ValueError(f"任务ID {task_id} 超出范围 (总任务数: {len(config['tasks'])})")
 
     task_cfg = config['tasks'][task_id]
-    data_dir = config['data_dir']
-    dataset_name = config['dataset_name']
+
+    # 支持每个任务使用不同的数据集和数据目录
+    # 优先使用任务级别的配置，否则使用全局默认值
+    dataset_name = task_cfg.get('dataset_name', config.get('default_dataset', 'MOSEI'))
+    data_dir = task_cfg.get('data_dir', config.get('default_data_dir', '../../output/mosei_features'))
 
     print(f"\n任务信息:")
     print(f"  Task ID: {task_cfg['task_id']}")
@@ -462,6 +465,8 @@ def create_task_dataloaders(
     task_info = {
         'task_id': task_id,
         'task_name': task_cfg['task_name'],
+        'dataset_name': dataset_name,
+        'data_dir': data_dir,
         'seen_emotions': task_cfg['seen_emotions'],
         'unseen_emotions': task_cfg.get('unseen_emotions', {}),
         'mapping_info': mapping_info,
