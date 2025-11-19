@@ -29,11 +29,11 @@ def seed_init(seed):
 
 def make_saving_folder_and_logger(cfg):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    folder_name = f"{cfg.general_para.setting}/{timestamp}" # 本次实验文件夹名称
-    father_folder_name = cfg.output_para.save_dir # 实验总文件夹名称
-
+    
+    father_folder_name = os.path.join(cfg.output_para.save_dir, cfg.general_para.setting) # 实验总文件夹名称
     if not os.path.exists(father_folder_name):
         os.makedirs(father_folder_name, exist_ok=True)
+    folder_name = f"{timestamp}" # 本次实验文件夹名称
 
     folder_path = os.path.join(father_folder_name, folder_name)
     os.mkdir(folder_path)

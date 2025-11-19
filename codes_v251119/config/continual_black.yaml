@@ -53,6 +53,7 @@ task3:
 dataloader:
   batch_size: 32
   num_workers: 4
+  train_ratio: 0.7
   shuffle_train: true
   pin_memory: true
 
