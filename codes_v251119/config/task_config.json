@@ -1,0 +1,73 @@
+{
+  "num_tasks": 3,
+  "exclude_neutral": true,
+  "default_data_dir": "../../output/mosei_features",
+  "default_dataset": "MOSEI",
+  "tasks": [
+    {
+      "task_id": 0,
+      "task_name": "Task0_MOSEI_Happy_Sad_vs_Surprise_Disgust",
+      "dataset_name": "MOSEI",
+      "data_dir": "../../output/mosei_features",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1
+      },
+      "unseen_emotions": {
+        "surprise": 3,
+        "disgust": 4
+      },
+      "description": "Task 0: MOSEI dataset, learn happy and sad, encounter surprise and disgust"
+    },
+    {
+      "task_id": 1,
+      "task_name": "Task1_MOSEI_Happy_Anger_vs_Fear",
+      "dataset_name": "MOSEI",
+      "data_dir": "../../output/mosei_features",
+      "seen_emotions": {
+        "happy": 0,
+        "anger": 2
+      },
+      "unseen_emotions": {
+        "fear": 5
+      },
+      "description": "Task 1: MOSEI dataset, happy already known, learn anger, encounter fear"
+    },
+    {
+      "task_id": 2,
+      "task_name": "Task2_MELD_All_Emotions",
+      "dataset_name": "MELD",
+      "data_dir": "../../output/meld_features",
+      "seen_emotions": {
+        "happy": 0,
+        "sad": 1,
+        "anger": 2,
+        "surprise": 3,
+        "disgust": 4,
+        "fear": 5
+      },
+      "unseen_emotions": {},
+      "description": "Task 2: MELD dataset, all emotions become seen (cross-dataset evaluation)"
+    }
+  ],
+  "emotion_id_mapping": {
+    "happy": 0,
+    "sad": 1,
+    "anger": 2,
+    "surprise": 3,
+    "disgust": 4,
+    "fear": 5,
+    "neutral": 6
+  },
+  "notes": [
+    "Support for cross-dataset continual learning",
+    "Each task can specify its own dataset_name and data_dir",
+    "If not specified, uses default_dataset and default_data_dir",
+    "Task 0-1: MOSEI dataset",
+    "Task 2: MELD dataset (cross-dataset transfer)",
+    "Incremental labels are unified across all datasets",
+    "Task 0: happy->0, sad->1, surprise->2, disgust->3",
+    "Task 1: happy->0 (reuse), anger->4 (new), fear->5 (new)",
+    "Task 2: All emotions with their assigned incremental labels"
+  ]
+}
