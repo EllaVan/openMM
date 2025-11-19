@@ -92,10 +92,10 @@ class LearnableAUEMOMatrix(nn.Module):
         # Initialize prior P(AU|EMO)
         if prior_p_au_given_emo is None:
             # Uniform prior
-            prior_p_au_emo = np.ones((num_aus, num_emotions)) / num_emotions
+            prior_p_au_emo = np.ones((num_emotions, num_aus)) / num_emotions
         else:
             prior_p_au_emo = np.array(prior_p_au_given_emo)
-            assert prior_p_au_emo.shape == (num_aus, num_emotions), \
+            assert prior_p_au_emo.shape == (num_emotions, num_aus), \
                 f"Prior shape mismatch: expected {(num_aus, num_emotions)}, got {prior_p_au_emo.shape}"
 
         # Convert P(AU|EMO) to P(EMO|AU) for initialization

@@ -4,13 +4,13 @@
 
 # 任务配置
 task:
-  config_path: /home/user/openMM/codes_v251119_2/config/tasks.json
+  config_path: b
   num_tasks: 3
   exclude_neutral: true
 
 # AU-EMO先验配置
 prior:
-  au_prior_path: /home/user/openMM/codes_v251119_2/materials/au_emo_prior.json
+  au_prior_path: /media/sda/wf/openMM/codes_v251119_2/materials/au_emo_prior.json
   num_aus: 23
   prior_strength: 0.1
 
@@ -62,8 +62,8 @@ training:
 
 # 输出配置
 output:
-  save_dir: /home/user/openMM/codes_v251119_2/checkpoints
-  log_dir: /home/user/openMM/codes_v251119_2/logs
+  save_dir: /media/sda/wf/openMM/codes_v251119_2/checkpoints
+  log_dir: /media/sda/wf/openMM/codes_v251119_2/logs
   log_interval: 10
   save_frequency: 5  # 每5个epoch保存一次
 

@@ -16,7 +16,7 @@
       "task_id": 0,
       "task_name": "Task0_MOSEI_Basic_Emotions",
       "dataset_name": "MOSEI",
-      "data_dir": "/home/user/openMM/output/mosei_features",
+      "data_dir": "/media/sda/wf/openMM/Data/v251112/mosei_utterance_features",
       "seen_emotions": {
         "happy": 0,
         "sad": 1
@@ -31,7 +31,7 @@
       "task_id": 1,
       "task_name": "Task1_MOSEI_Expand_Emotions",
       "dataset_name": "MOSEI",
-      "data_dir": "/home/user/openMM/output/mosei_features",
+      "data_dir": "/media/sda/wf/openMM/Data/v251112/mosei_utterance_features",
       "seen_emotions": {
         "happy": 0,
         "anger": 2
@@ -45,7 +45,7 @@
       "task_id": 2,
       "task_name": "Task2_MELD_Cross_Dataset",
       "dataset_name": "MELD",
-      "data_dir": "/home/user/openMM/output/meld_features",
+      "data_dir": "/media/sda/wf/openMM/Data/v251112/meld_utterance_features",
       "seen_emotions": {
         "anger": 2,
         "surprise": 5,

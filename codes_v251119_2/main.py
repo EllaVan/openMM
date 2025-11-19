@@ -17,7 +17,7 @@ import torch
 import torch.optim as optim
 
 # 添加当前目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent))
 
 from core import (
     AUEmotionNetwork,

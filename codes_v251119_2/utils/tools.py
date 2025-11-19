@@ -25,8 +25,8 @@ def seed_init(seed: int = 2025):
     torch.cuda.manual_seed_all(seed)
 
     # 为了完全可复现，需要设置以下参数（但会降低性能）
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def setup_logger(
