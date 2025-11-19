@@ -80,31 +80,10 @@ def main(cfg: DictConfig):
     label_mapper = IncrementalLabelMapper()
 
     # ========================================================================
-    # 4. 创建AU-EMO矩阵
+    # 4. 创建网络模型（集成AU-EMO矩阵）
     # ========================================================================
     logger.info("\n" + "-"*80)
-    logger.info("创建可学习AU-EMO矩阵...")
-    logger.info("-"*80)
-
-    au_emo_matrix = LearnableAUEMOMatrix(
-        num_aus=cfg.prior.num_aus,
-        num_emotions=num_emotions,
-        prior_p_au_given_emo=prior_matrix,
-        prior_strength=cfg.prior.prior_strength,
-        device=device
-    )
-
-    logger.info(f"矩阵初始化完成")
-    logger.info(f"  先验强度: {cfg.prior.prior_strength}")
-
-    initial_stats = au_emo_matrix.get_statistics()
-    logger.info(f"  初始KL散度: {initial_stats['kl_from_prior']:.6f}")
-
-    # ========================================================================
-    # 5. 创建网络模型
-    # ========================================================================
-    logger.info("\n" + "-"*80)
-    logger.info("创建AU情绪识别网络...")
+    logger.info("创建AU情绪识别网络（集成AU-EMO矩阵）...")
     logger.info("-"*80)
 
     model = AUEmotionNetwork(
@@ -119,8 +98,16 @@ def main(cfg: DictConfig):
         num_hyperedges=cfg.network.num_hyperedges,
         num_conv_layers=cfg.network.num_conv_layers,
         dropout=cfg.network.dropout,
+        au_emo_prior=prior_matrix,
+        prior_strength=cfg.prior.prior_strength,
         device=device
     )
+
+    logger.info(f"网络初始化完成（含AU-EMO矩阵）")
+    logger.info(f"  先验强度: {cfg.prior.prior_strength}")
+
+    initial_stats = model.au_emo_matrix.get_statistics()
+    logger.info(f"  初始KL散度: {initial_stats['kl_from_prior']:.6f}")
 
     # 统计参数量
     param_stats = count_parameters(model)
@@ -129,20 +116,26 @@ def main(cfg: DictConfig):
     logger.info(f"  可训练参数: {param_stats['trainable']:,}")
 
     # ========================================================================
-    # 6. 创建优化器
+    # 5. 创建优化器
     # ========================================================================
     logger.info("\n" + "-"*80)
     logger.info("创建优化器...")
     logger.info("-"*80)
 
     # 分别设置网络和矩阵的学习率
+    # 收集所有非矩阵参数
+    network_params = []
+    for name, param in model.named_parameters():
+        if 'au_emo_matrix.matrix_logits' not in name:
+            network_params.append(param)
+
     optimizer = optim.Adam([
         {
-            'params': [p for n, p in model.named_parameters()],
+            'params': network_params,
             'lr': cfg.training.learning_rate
         },
         {
-            'params': [au_emo_matrix.matrix_logits],
+            'params': [model.au_emo_matrix.matrix_logits],
             'lr': cfg.training.matrix_learning_rate
         }
     ], weight_decay=cfg.training.weight_decay)
@@ -153,7 +146,7 @@ def main(cfg: DictConfig):
     logger.info(f"  权重衰减: {cfg.training.weight_decay}")
 
     # ========================================================================
-    # 7. 创建训练器
+    # 6. 创建训练器
     # ========================================================================
     logger.info("\n" + "-"*80)
     logger.info("创建持续学习训练器...")
@@ -164,7 +157,6 @@ def main(cfg: DictConfig):
 
     trainer = ContinualLearningTrainer(
         model=model,
-        au_emo_matrix=au_emo_matrix,
         optimizer=optimizer,
         config=config_dict,
         logger=logger,
@@ -247,7 +239,7 @@ def main(cfg: DictConfig):
     for original, incremental in sorted(label_mapper.original_to_incremental.items()):
         logger.info(f"  原始标签 {original} -> 增量标签 {incremental}")
 
-    final_matrix_stats = au_emo_matrix.get_statistics()
+    final_matrix_stats = model.au_emo_matrix.get_statistics()
     logger.info(f"\n最终AU-EMO矩阵统计:")
     for key, value in final_matrix_stats.items():
         logger.info(f"  {key}: {value:.4f}")

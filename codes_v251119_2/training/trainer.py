@@ -39,7 +39,6 @@ class ContinualLearningTrainer:
     def __init__(
         self,
         model: AUEmotionNetwork,
-        au_emo_matrix: LearnableAUEMOMatrix,
         optimizer: optim.Optimizer,
         config: dict,
         logger,
@@ -47,22 +46,18 @@ class ContinualLearningTrainer:
     ):
         """
         Args:
-            model: AU情绪识别网络
-            au_emo_matrix: 可学习AU-EMO矩阵
+            model: AU情绪识别网络（已集成AU-EMO矩阵）
             optimizer: 优化器
             config: 配置字典
             logger: 日志记录器
             device: 设备
         """
         self.model = model.to(device)
-        self.au_emo_matrix = au_emo_matrix
+        self.au_emo_matrix = model.au_emo_matrix  # 从模型中获取矩阵引用
         self.optimizer = optimizer
         self.config = config
         self.logger = logger
         self.device = device
-
-        # 将矩阵注入到模型中
-        self.model.set_au_emo_matrix(self.au_emo_matrix)
 
         # 持续学习组件
         self.ewc = None
