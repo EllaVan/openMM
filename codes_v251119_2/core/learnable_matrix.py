@@ -70,8 +70,11 @@ class LearnableAUEMOMatrix(nn.Module):
                 f"先验矩阵形状不匹配: 期望 {(num_emotions, num_aus)}, 实际 {prior_p_au_emo.shape}"
 
         # 将概率转换为logits用于参数化
-        # logits在优化过程中是无约束的
-        prior_logits = np.log(prior_p_au_emo + 1e-10)
+        # 对于sigmoid: p = sigmoid(logit) = 1/(1+exp(-logit))
+        # 反函数: logit = log(p/(1-p))
+        # Clip概率值避免极端情况
+        prior_p_au_emo_clipped = np.clip(prior_p_au_emo, 1e-7, 1 - 1e-7)
+        prior_logits = np.log(prior_p_au_emo_clipped / (1 - prior_p_au_emo_clipped))
 
         # 存储先验（不可学习）
         self.register_buffer(
@@ -102,30 +105,37 @@ class LearnableAUEMOMatrix(nn.Module):
 
     def get_probability_matrix(self) -> torch.Tensor:
         """
-        获取当前的 P(AU|EMO) 概率矩阵
+        获取当前的 P(AU|EMO) 概率矩阵（未归一化）
 
-        对logits在情绪维度（dim=0）进行归一化，确保：
-        Σ_k P(AU_i|EMO_k) = 1 对于每个AU i
+        P(AU_i|EMO_k)表示给定情绪k时，AU i被激活的概率，范围[0,1]
+        这是独立的概率值，不需要满足Σ_k P(AU_i|EMO_k) = 1的约束
 
         Returns:
         --------
         p_au_given_emo : torch.Tensor [num_emotions, num_aus]
             P(AU_i|EMO_k) 概率矩阵，[k, i]表示给定情绪k，AU i的激活概率
+            每个值独立地在[0,1]范围内
         """
-        # 对每列（每个AU）在情绪维度上进行softmax
-        # 这样对于每个AU，所有情绪的概率和为1
-        p_au_given_emo = F.softmax(self.matrix_logits, dim=0)
+        # 使用sigmoid将logits转换为独立的概率值
+        # 不使用softmax，因为P(AU_i|EMO_k)对于不同的k应该是独立的
+        p_au_given_emo = torch.sigmoid(self.matrix_logits)
         return p_au_given_emo
 
     def forward(self, au_probs: torch.Tensor, emo_prior: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         从AU概率预测情绪概率
 
-        使用正确的公式（由于softmax归一化，分母为1可消去）：
-        p(emo_k | x) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k)] * P(EMO_k)
+        使用正确的公式：
+        p(emo_k | x) ∝ P(EMO_k) * ∏_i [P(au_i|x) * P(AU_i|EMO_k) / Σ_k' P(AU_i|EMO_k')]
 
         在对数空间：
-        log p(emo_k | x) = Σ_i [log P(au_i|x) + log P(AU_i|EMO_k)] + log P(EMO_k)
+        log p(emo_k | x) = log P(EMO_k) + Σ_i [log P(au_i|x) + log P(AU_i|EMO_k) - log Σ_k' P(AU_i|EMO_k')]
+
+        其中：
+        - P(au_i|x): 从样本x预测的AU i激活概率
+        - P(AU_i|EMO_k): 给定情绪k时AU i的激活概率（先验知识）
+        - Σ_k' P(AU_i|EMO_k'): 对所有情绪求和，作为归一化因子
+        - P(EMO_k): 情绪先验概率
 
         Parameters:
         -----------
@@ -146,17 +156,25 @@ class LearnableAUEMOMatrix(nn.Module):
         if emo_prior is None:
             emo_prior = self.emo_prior
 
-        # 计算：P(au_i|x) * P(AU_i|EMO_k)
+        # 计算分母：Σ_k' P(AU_i|EMO_k') 对每个AU在所有情绪上求和
+        # [num_emotions, num_aus] -> [1, num_aus]
+        denominator = p_au_given_emo.sum(dim=0, keepdim=True)  # [1, num_aus]
+
+        # 计算归一化后的项：P(AU_i|EMO_k) / Σ_k' P(AU_i|EMO_k')
+        # [num_emotions, num_aus]
+        normalized_p = p_au_given_emo / (denominator + 1e-10)
+
+        # 计算：P(au_i|x) * normalized_p
         # au_probs: [batch, num_aus]
-        # p_au_given_emo: [num_emotions, num_aus]
+        # normalized_p: [num_emotions, num_aus]
         # 扩展维度以便广播
         au_probs_expanded = au_probs.unsqueeze(1)  # [batch, 1, num_aus]
-        p_au_emo_expanded = p_au_given_emo.unsqueeze(0)  # [1, num_emotions, num_aus]
+        normalized_p_expanded = normalized_p.unsqueeze(0)  # [1, num_emotions, num_aus]
 
         # 逐元素相乘 [batch, num_emotions, num_aus]
-        weighted = au_probs_expanded * p_au_emo_expanded
+        weighted = au_probs_expanded * normalized_p_expanded
 
-        # 在AU维度求和（对数空间）：Σ_i log[P(au_i|x) * P(AU_i|EMO_k)]
+        # 在AU维度求和（对数空间）：Σ_i log[P(au_i|x) * normalized_p]
         # [batch, num_emotions]
         emo_logits = torch.log(weighted + 1e-10).sum(dim=2)
 
@@ -358,13 +376,15 @@ class LearnableAUEMOMatrix(nn.Module):
                 output.write(f"{matrix[i, j]:>12.4f}")
             output.write("\n")
 
-        # 列和（每个AU在情绪维度的和，应该都接近1.0）
+        # 列和（每个AU在情绪维度的和，不需要等于1.0）
         output.write("-" * (15 + 12 * self.num_aus) + "\n")
         output.write(f"{'列和(AU)':<15}")
         col_sums = matrix.sum(axis=0)  # 对每个AU，在情绪维度求和
         for j in range(self.num_aus):
             output.write(f"{col_sums[j]:>12.4f}")
         output.write("\n")
+        output.write(f"{'(归一化用)':<15}")
+        output.write("(这些值在forward()中作为分母用于归一化)\n")
 
         return output.getvalue()
 
