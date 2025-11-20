@@ -103,6 +103,17 @@ class LearnableAUEMOMatrix(nn.Module):
             torch.tensor(0, dtype=torch.long, device=device)
         )
 
+        # 增量学习：跟踪已激活的情绪
+        self.register_buffer(
+            'active_mask',
+            torch.zeros(num_emotions, dtype=torch.bool, device=device)
+        )
+
+        # 映射：全局情绪ID <-> 局部索引（在active中的位置）
+        self.emotion_id_to_local_idx = {}  # {global_id: local_idx}
+        self.local_idx_to_emotion_id = {}  # {local_idx: global_id}
+        self.num_active_emotions = 0
+
     def get_probability_matrix(self) -> torch.Tensor:
         """
         获取当前的 P(AU|EMO) 概率矩阵（未归一化）
@@ -121,6 +132,61 @@ class LearnableAUEMOMatrix(nn.Module):
         p_au_given_emo = torch.sigmoid(self.matrix_logits)
         return p_au_given_emo
 
+    def add_emotion(self, emotion_name: str, global_idx: int):
+        """
+        激活一个情绪（用于增量学习）
+
+        在持续学习中，每个task只关注当前及之前遇到的情绪（seen + unseen）
+        当遇到新情绪时，调用此方法将其加入到active集合
+
+        Parameters:
+        -----------
+        emotion_name : str
+            情绪名称（用于日志）
+        global_idx : int
+            情绪在全局emotion_id_mapping中的索引（0-6）
+        """
+        if global_idx < 0 or global_idx >= self.num_emotions:
+            raise ValueError(f"global_idx {global_idx} 超出范围 [0, {self.num_emotions})")
+
+        # 如果已经激活，跳过
+        if self.active_mask[global_idx]:
+            print(f"  情绪 '{emotion_name}' (global_id={global_idx}) 已激活，跳过")
+            return
+
+        # 激活这个情绪
+        self.active_mask[global_idx] = True
+
+        # 更新映射
+        local_idx = self.num_active_emotions
+        self.emotion_id_to_local_idx[global_idx] = local_idx
+        self.local_idx_to_emotion_id[local_idx] = global_idx
+        self.num_active_emotions += 1
+
+        print(f"  ✓ 激活情绪 '{emotion_name}' (global_id={global_idx} -> local_idx={local_idx})")
+        print(f"    当前活跃情绪数: {self.num_active_emotions}/{self.num_emotions}")
+
+    def get_active_emotions(self) -> list:
+        """
+        获取当前激活的情绪列表
+
+        Returns:
+        --------
+        active_emotion_ids : list
+            激活的情绪全局ID列表（按local_idx排序）
+        """
+        return [self.local_idx_to_emotion_id[i] for i in range(self.num_active_emotions)]
+
+    def reset_active_emotions(self):
+        """
+        重置所有激活状态（用于测试或重新开始）
+        """
+        self.active_mask.fill_(False)
+        self.emotion_id_to_local_idx.clear()
+        self.local_idx_to_emotion_id.clear()
+        self.num_active_emotions = 0
+        print("  已重置所有激活的情绪")
+
     def forward(self, au_probs: torch.Tensor, emo_prior: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         从AU概率预测情绪概率
@@ -135,8 +201,11 @@ class LearnableAUEMOMatrix(nn.Module):
         1. 温度缩放：除以num_aus，相当于取几何平均而非几何乘积
         2. 减去最大值：标准log-sum-exp技巧，不改变softmax结果
 
+        增量学习：
+        只返回当前激活的情绪的logits [batch, num_active]，而非全部[batch, num_emotions]
+
         其中：
-        - P(au_i|x): 从样本x预测的AU i激活概率
+        - P(au_i|x): 从样本预测的AU i激活概率
         - P(AU_i|EMO_k): 给定情绪k时AU i的激活概率（先验知识）
         - Σ_k' P(AU_i|EMO_k'): 对所有情绪求和，作为归一化因子
         - P(EMO_k): 情绪先验概率
@@ -150,8 +219,9 @@ class LearnableAUEMOMatrix(nn.Module):
 
         Returns:
         --------
-        emo_logits : torch.Tensor [batch_size, num_emotions]
-            情绪预测logits（经过温度缩放和数值稳定化）
+        emo_logits : torch.Tensor [batch_size, num_active_emotions]
+            **仅包含激活情绪**的预测logits（经过温度缩放和数值稳定化）
+            如果没有激活任何情绪，返回空tensor [batch, 0]
         """
         # 获取 P(AU|EMO) 矩阵 [num_emotions, num_aus]
         p_au_given_emo = self.get_probability_matrix()
@@ -180,21 +250,29 @@ class LearnableAUEMOMatrix(nn.Module):
 
         # 在AU维度求和（对数空间）：Σ_i log[P(au_i|x) * normalized_p]
         # [batch, num_emotions]
-        emo_logits = torch.log(weighted + 1e-10).sum(dim=2)
+        full_emo_logits = torch.log(weighted + 1e-10).sum(dim=2)
 
         # 加上情绪先验的对数：log P(EMO_k)
-        emo_logits = emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
+        full_emo_logits = full_emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
 
         # 温度缩放：除以AU数量，相当于取几何平均
         # 将logits从[-100, -50]范围缩放到[-4.3, -2.2]范围
         temperature = self.num_aus  # 23
-        emo_logits = emo_logits / temperature
+        full_emo_logits = full_emo_logits / temperature
+
+        # 增量学习：只返回激活的情绪
+        if self.num_active_emotions == 0:
+            # 如果没有激活任何情绪，返回空tensor
+            return torch.zeros(au_probs.size(0), 0, device=au_probs.device)
+
+        # 提取激活情绪的logits [batch, num_active]
+        active_emo_logits = full_emo_logits[:, self.active_mask]
 
         # 数值稳定化：减去最大值（标准log-sum-exp trick）
         # 这不会改变softmax的结果，但避免exp溢出
-        emo_logits = emo_logits - emo_logits.max(dim=1, keepdim=True)[0]
+        active_emo_logits = active_emo_logits - active_emo_logits.max(dim=1, keepdim=True)[0]
 
-        return emo_logits
+        return active_emo_logits
 
     def compute_regularization_loss(self) -> torch.Tensor:
         """
@@ -307,15 +385,21 @@ class LearnableAUEMOMatrix(nn.Module):
             'update_count': self.update_count.item(),
             'num_aus': self.num_aus,
             'num_emotions': self.num_emotions,
-            'prior_strength': self.prior_strength
+            'prior_strength': self.prior_strength,
+            # 增量学习状态
+            'active_mask': self.active_mask.cpu().numpy(),
+            'num_active_emotions': self.num_active_emotions,
+            'emotion_id_to_local_idx': json.dumps(self.emotion_id_to_local_idx),
+            'local_idx_to_emotion_id': json.dumps({str(k): v for k, v in self.local_idx_to_emotion_id.items()})
         }
 
         np.savez(filepath, **state)
         print(f"可学习AU-EMO矩阵已保存到 {filepath}")
+        print(f"  活跃情绪数: {self.num_active_emotions}/{self.num_emotions}")
 
     def load(self, filepath: str):
         """加载矩阵状态"""
-        state = np.load(filepath)
+        state = np.load(filepath, allow_pickle=True)
 
         assert state['num_aus'] == self.num_aus
         assert state['num_emotions'] == self.num_emotions
@@ -331,7 +415,21 @@ class LearnableAUEMOMatrix(nn.Module):
             torch.tensor(state['update_count'], device=self.device_str)
         )
 
-        print(f"可学习AU-EMO矩阵已从 {filepath} 加载")
+        # 加载增量学习状态
+        if 'active_mask' in state:
+            self.active_mask.copy_(
+                torch.tensor(state['active_mask'], device=self.device_str)
+            )
+            self.num_active_emotions = int(state['num_active_emotions'])
+            self.emotion_id_to_local_idx = json.loads(str(state['emotion_id_to_local_idx']))
+            # 将字符串键转换回整数
+            local_to_emotion = json.loads(str(state['local_idx_to_emotion_id']))
+            self.local_idx_to_emotion_id = {int(k): v for k, v in local_to_emotion.items()}
+
+            print(f"可学习AU-EMO矩阵已从 {filepath} 加载")
+            print(f"  活跃情绪数: {self.num_active_emotions}/{self.num_emotions}")
+        else:
+            print(f"可学习AU-EMO矩阵已从 {filepath} 加载（旧格式，无增量学习状态）")
 
     def visualize_matrix(
         self,
