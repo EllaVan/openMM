@@ -125,17 +125,14 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         从AU概率预测情绪概率
 
-        使用正确的公式：
-        p(emo_k | x) ∝ P(EMO_k) * ∏_i [P(au_i|x) * P(AU_i|EMO_k) / Σ_k' P(AU_i|EMO_k')]
+        修正的公式（P(au_i|x)作为权重）：
+        由于softmax归一化时P(au_i|x)会被消掉，我们将其作为权重使用：
 
-        在对数空间：
-        log p(emo_k | x) = log P(EMO_k) + Σ_i [log P(au_i|x) + log P(AU_i|EMO_k) - log Σ_k' P(AU_i|EMO_k')]
+        score(emo_k | x) = P(EMO_k) * Σ_i w_i * [P(AU_i|EMO_k) / Σ_k' P(AU_i|EMO_k')]
 
-        其中：
-        - P(au_i|x): 从样本x预测的AU i激活概率
-        - P(AU_i|EMO_k): 给定情绪k时AU i的激活概率（先验知识）
-        - Σ_k' P(AU_i|EMO_k'): 对所有情绪求和，作为归一化因子
-        - P(EMO_k): 情绪先验概率
+        其中 w_i = P(au_i|x) / Σ_j P(au_j|x) 是归一化的AU激活权重
+
+        这避免了对23个小概率连乘导致的数值下溢问题。
 
         Parameters:
         -----------
@@ -147,7 +144,7 @@ class LearnableAUEMOMatrix(nn.Module):
         Returns:
         --------
         emo_logits : torch.Tensor [batch_size, num_emotions]
-            情绪预测对数概率
+            情绪预测logits
         """
         # 获取 P(AU|EMO) 矩阵 [num_emotions, num_aus]
         p_au_given_emo = self.get_probability_matrix()
@@ -157,29 +154,29 @@ class LearnableAUEMOMatrix(nn.Module):
             emo_prior = self.emo_prior
 
         # 计算分母：Σ_k' P(AU_i|EMO_k') 对每个AU在所有情绪上求和
-        # [num_emotions, num_aus] -> [1, num_aus]
-        denominator = p_au_given_emo.sum(dim=0, keepdim=True)  # [1, num_aus]
+        # [num_emotions, num_aus] -> [num_aus]
+        denominator = p_au_given_emo.sum(dim=0, keepdim=False)  # [num_aus]
 
         # 计算归一化后的项：P(AU_i|EMO_k) / Σ_k' P(AU_i|EMO_k')
         # [num_emotions, num_aus]
-        normalized_p = p_au_given_emo / (denominator + 1e-10)
+        normalized_p = p_au_given_emo / (denominator.unsqueeze(0) + 1e-10)
 
-        # 计算：P(au_i|x) * normalized_p
-        # au_probs: [batch, num_aus]
+        # 将AU概率归一化为权重：w_i = P(au_i|x) / Σ_j P(au_j|x)
+        # [batch, num_aus]
+        au_weights = au_probs / (au_probs.sum(dim=1, keepdim=True) + 1e-10)
+
+        # 计算加权得分：Σ_i w_i * normalized_p[k, i]
+        # au_weights: [batch, num_aus]
         # normalized_p: [num_emotions, num_aus]
-        # 扩展维度以便广播
-        au_probs_expanded = au_probs.unsqueeze(1)  # [batch, 1, num_aus]
-        normalized_p_expanded = normalized_p.unsqueeze(0)  # [1, num_emotions, num_aus]
+        # 使用矩阵乘法：[batch, num_aus] @ [num_aus, num_emotions] = [batch, num_emotions]
+        emo_scores = torch.matmul(au_weights, normalized_p.t())  # [batch, num_emotions]
 
-        # 逐元素相乘 [batch, num_emotions, num_aus]
-        weighted = au_probs_expanded * normalized_p_expanded
+        # 乘以情绪先验（在概率空间）
+        emo_scores = emo_scores * emo_prior.unsqueeze(0)
 
-        # 在AU维度求和（对数空间）：Σ_i log[P(au_i|x) * normalized_p]
-        # [batch, num_emotions]
-        emo_logits = torch.log(weighted + 1e-10).sum(dim=2)
-
-        # 加上情绪先验的对数：log P(EMO_k)
-        emo_logits = emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
+        # 转换为logits（用于cross-entropy）
+        # 为了数值稳定，使用log-sum-exp trick
+        emo_logits = torch.log(emo_scores + 1e-10)
 
         return emo_logits
 
