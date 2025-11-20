@@ -4,7 +4,7 @@
 import torch
 import numpy as np
 import sys
-sys.path.append('/home/user/openMM/codes_v251119_2')
+# sys.path.append('/home/user/openMM/codes_v251119_2')
 
 from core.learnable_matrix import LearnableAUEMOMatrix
 

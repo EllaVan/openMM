@@ -6,6 +6,7 @@ from .au_emotion_network import AUEmotionNetwork, AUPredictor, DirectEmotionClas
 from .learnable_matrix import LearnableAUEMOMatrix, load_au_emo_prior
 from .consistency_checker import MultimodalConsistencyChecker, ConsistencyStrategy
 from .ewc import EWC
+from .zeroshot_expander import zeroshotExpander
 
 __all__ = [
     'AUEmotionNetwork',
@@ -15,5 +16,6 @@ __all__ = [
     'load_au_emo_prior',
     'MultimodalConsistencyChecker',
     'ConsistencyStrategy',
-    'EWC'
+    'EWC',
+    'zeroshotExpander'
 ]

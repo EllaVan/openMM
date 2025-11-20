@@ -54,8 +54,8 @@ continual_learning:
 
 # 训练配置
 training:
-  epochs_per_task: 20
-  warmup_epochs: 3  # Task 0的预热轮数
+  epochs_per_task: 1
+  warmup_epochs: 1  # Task 0的预热轮数
   learning_rate: 1.0e-4
   matrix_learning_rate: 1.0e-3
   weight_decay: 1.0e-5
@@ -65,8 +65,8 @@ training:
 output:
   save_dir: /media/sda/wf/openMM/codes_v251119_2/checkpoints
   log_dir: /media/sda/wf/openMM/codes_v251119_2/logs
-  log_interval: 10
-  save_frequency: 5  # 每5个epoch保存一次
+  log_interval: 1 #10
+  save_frequency: 1 #5  # 每5个epoch保存一次
 
 # 系统配置
 system:
