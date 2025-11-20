@@ -187,7 +187,7 @@ class ContinualLearningTrainer:
         """
         预热阶段（仅Task 0）
 
-        训练整个网络（包括矩阵）到合理状态
+        训练整个网络（包括矩阵）到合理状态: unimodal维度映射+ hypergraph融合+AU预测器+AU-EMO路径预测+情绪预测器
         """
         for epoch in range(num_epochs):
             self.model.train()
