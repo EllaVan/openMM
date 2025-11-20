@@ -131,7 +131,9 @@ class LearnableAUEMOMatrix(nn.Module):
         在对数空间：
         log p(emo_k | x) = log P(EMO_k) + Σ_i [log P(au_i|x) + log P(AU_i|EMO_k) - log Σ_k' P(AU_i|EMO_k')]
 
-        然后使用min-max归一化处理数值范围问题。
+        数值稳定化：
+        1. 温度缩放：除以num_aus，相当于取几何平均而非几何乘积
+        2. 减去最大值：标准log-sum-exp技巧，不改变softmax结果
 
         其中：
         - P(au_i|x): 从样本x预测的AU i激活概率
@@ -149,7 +151,7 @@ class LearnableAUEMOMatrix(nn.Module):
         Returns:
         --------
         emo_logits : torch.Tensor [batch_size, num_emotions]
-            情绪预测logits（经过min-max归一化）
+            情绪预测logits（经过温度缩放和数值稳定化）
         """
         # 获取 P(AU|EMO) 矩阵 [num_emotions, num_aus]
         p_au_given_emo = self.get_probability_matrix()
@@ -183,18 +185,14 @@ class LearnableAUEMOMatrix(nn.Module):
         # 加上情绪先验的对数：log P(EMO_k)
         emo_logits = emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
 
-        # Min-Max归一化（按照论文中的做法）
-        # 对每个样本独立进行归一化
-        min_vals = emo_logits.min(dim=1, keepdim=True)[0]
-        max_vals = emo_logits.max(dim=1, keepdim=True)[0]
+        # 温度缩放：除以AU数量，相当于取几何平均
+        # 将logits从[-100, -50]范围缩放到[-4.3, -2.2]范围
+        temperature = self.num_aus  # 23
+        emo_logits = emo_logits / temperature
 
-        # 归一化到[0, 1]，然后缩放到合理的logits范围
-        # 使用一个缩放因子使归一化后的值在合适的范围
-        emo_logits_normalized = (emo_logits - min_vals) / (max_vals - min_vals + 1e-10)
-
-        # 将[0, 1]范围映射到logits范围，例如[-10, 10]
-        # 这样softmax后仍能保持数值稳定性
-        emo_logits = emo_logits_normalized * 20 - 10  # 映射到[-10, 10]
+        # 数值稳定化：减去最大值（标准log-sum-exp trick）
+        # 这不会改变softmax的结果，但避免exp溢出
+        emo_logits = emo_logits - emo_logits.max(dim=1, keepdim=True)[0]
 
         return emo_logits
 
