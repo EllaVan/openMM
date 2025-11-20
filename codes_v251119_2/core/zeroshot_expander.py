@@ -127,28 +127,3 @@ class zeroshotExpander(nn.Module):
             x = torch.mm(alpha_att_softmax, x)
         return F.normalize(x)
     
-
-# method to calculate ex trans matrix
-def getTransitionProb(x1, x2, num_emotions=6):
-    prob_sum = np.sum(x1 * x2)
-    x1_x2 = prob_sum/np.sum(x2)/num_emotions # p(x1|x2)
-    x2_x1 = prob_sum/np.sum(x1)/num_emotions # p(x2|x1)
-    return x1_x2, x2_x1
-
-
-# get ex trans matrix
-def getTransitionMatrix(ex_au, threhold):
-    num_exs = ex_au.shape[0]
-    num_aus = ex_au.shape[1]
-    trans_ex = np.zeros((num_exs, num_exs))
-    self_connection = np.identity(num_exs)
-    b = trans_ex
-    for i in range(num_exs - 1):
-        for j in range(i + 1, num_exs):
-            y1, y2 = getTransitionProb(ex_au[i], ex_au[j])
-            b[i][j] = y1
-            b[j][i] = y2
-    for i in range(num_exs):
-        trans_ex[i] = b[i] / np.sum(b[i])
-    trans_ex = trans_ex + self_connection
-    return trans_ex
