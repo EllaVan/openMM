@@ -109,7 +109,9 @@ def main(cfg: DictConfig):
     logger.info(f"  先验强度: {cfg.prior.prior_strength}")
 
     initial_stats = model.au_emo_matrix.get_statistics()
-    logger.info(f"  初始KL散度: {initial_stats['kl_from_prior']:.6f}")
+    logger.info(f"  初始MSE距离: {initial_stats['mse_from_prior']:.6f}")
+    logger.info(f"  初始MAE距离: {initial_stats['mae_from_prior']:.6f}")
+    logger.info(f"  初始最大差异: {initial_stats['max_diff_from_prior']:.6f}")
 
     # 统计参数量
     param_stats = count_parameters(model)

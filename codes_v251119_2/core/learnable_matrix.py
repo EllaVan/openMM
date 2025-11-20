@@ -187,7 +187,8 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         计算正则化损失（向先验正则化）
 
-        使用KL散度：D_KL(current || prior)
+        使用MSE而非KL散度，因为P(AU|EMO)矩阵不是概率分布
+        （每行/列的和都不等于1，不能直接用KL散度）
 
         Returns:
         --------
@@ -196,15 +197,11 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         current_probs = self.get_probability_matrix()
 
-        # KL散度：D_KL(P || Q) = Σ P(x) log(P(x) / Q(x))
-        # 在AU维度和EMO维度上求和
-        kl_div = F.kl_div(
-            torch.log(current_probs + 1e-10),
-            self.prior_p_au_given_emo,
-            reduction='batchmean'
-        )
+        # 使用MSE衡量与先验的距离
+        # MSE适用于非归一化的概率矩阵
+        mse = F.mse_loss(current_probs, self.prior_p_au_given_emo)
 
-        return self.prior_strength * kl_div
+        return self.prior_strength * mse
 
     def compute_entropy_regularization(self, strength: float = 0.01) -> torch.Tensor:
         """
@@ -232,16 +229,18 @@ class LearnableAUEMOMatrix(nn.Module):
         """获取统计信息"""
         current_probs = self.get_probability_matrix()
 
-        # KL散度
-        kl_div = F.kl_div(
-            torch.log(current_probs + 1e-10),
-            self.prior_p_au_given_emo,
-            reduction='batchmean'
-        ).item()
+        # MSE距离（与先验的差异）
+        mse_from_prior = F.mse_loss(current_probs, self.prior_p_au_given_emo).item()
 
-        # 平均熵（每个情绪列的熵）
-        entropy_per_emo = -(current_probs * torch.log(current_probs + 1e-10)).sum(dim=0)
-        avg_entropy = entropy_per_emo.mean().item()
+        # MAE距离（更直观）
+        mae_from_prior = F.l1_loss(current_probs, self.prior_p_au_given_emo).item()
+
+        # 最大绝对差异
+        max_diff = torch.abs(current_probs - self.prior_p_au_given_emo).max().item()
+
+        # 平均熵（每个AU列的熵）
+        entropy_per_au = -(current_probs * torch.log(current_probs + 1e-10)).sum(dim=0)
+        avg_entropy = entropy_per_au.mean().item()
 
         # Logits统计
         logits_mean = self.matrix_logits.mean().item()
@@ -251,8 +250,10 @@ class LearnableAUEMOMatrix(nn.Module):
 
         return {
             'avg_probability': current_probs.mean().item(),
-            'kl_from_prior': kl_div,
-            'avg_entropy_per_emotion': avg_entropy,
+            'mse_from_prior': mse_from_prior,
+            'mae_from_prior': mae_from_prior,
+            'max_diff_from_prior': max_diff,
+            'avg_entropy_per_au': avg_entropy,
             'logits_mean': logits_mean,
             'logits_std': logits_std,
             'logits_max': logits_max,
