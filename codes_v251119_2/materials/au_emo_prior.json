@@ -39,7 +39,7 @@
     "sad": 1,
     "surprise": 2,
     "disgust": 3,
-    "abger": 4,
+    "anger": 4,
     "fear": 5,
     "joy": 6
   },
