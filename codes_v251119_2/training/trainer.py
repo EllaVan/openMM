@@ -163,7 +163,8 @@ class ContinualLearningTrainer:
 
             # 保存矩阵统计
             matrix_stats = self.au_emo_matrix.get_statistics()
-            self.logger.info(f"  矩阵KL散度: {matrix_stats['kl_from_prior']:.4f}")
+            self.logger.info(f"  矩阵MSE距离: {matrix_stats['mse_from_prior']:.4f}")
+            self.logger.info(f"  矩阵MAE距离: {matrix_stats['mae_from_prior']:.4f}")
 
             # 定期保存
             if (epoch + 1) % self.config['output'].get('save_frequency', 5) == 0:
