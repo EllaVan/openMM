@@ -194,7 +194,7 @@ class ContinualLearningTrainer:
             total_loss = 0
             num_batches = 0
 
-            progress_bar = tqdm(train_loader, desc=f'Warmup Epoch {epoch+1}/{num_epochs}')
+            progress_bar = tqdm(train_loader, desc=f'Warmup Epoch {epoch+1}/{num_epochs}', ncols=80)
 
             for batch in progress_bar:
                 # 获取数据
@@ -254,7 +254,7 @@ class ContinualLearningTrainer:
         unseen_count = 0
         consistent_count = 0
 
-        progress_bar = tqdm(train_loader, desc=f'Training')
+        progress_bar = tqdm(train_loader, desc=f'Training', ncols=80)
 
         for batch in progress_bar:
             # 获取数据

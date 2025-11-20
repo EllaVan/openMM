@@ -242,7 +242,7 @@ def load_emotion_pkl(
 
     if dataset_name == 'MOSEI':
         # MOSEI 格式: MOSEIhappylabel0.pkl
-        filename = f"{dataset_name}{emotion_name}label{original_label}.pkl"
+        filename = f"{dataset_name}{emotion_name}.pkl"
         file_path = os.path.join(data_dir, filename)
 
         if not os.path.exists(file_path):
@@ -260,9 +260,9 @@ def load_emotion_pkl(
 
     elif dataset_name == 'MELD':
         # MELD 格式: MELD_trainhappylabel0.pkl, MELD_devhappylabel0.pkl, MELD_testhappylabel0.pkl
-        train_file = f"{dataset_name}_train{emotion_name}label{original_label}.pkl"
-        dev_file = f"{dataset_name}_dev{emotion_name}label{original_label}.pkl"
-        test_file = f"{dataset_name}_test{emotion_name}label{original_label}.pkl"
+        train_file = f"{dataset_name}_train{emotion_name}.pkl"
+        dev_file = f"{dataset_name}_dev{emotion_name}.pkl"
+        test_file = f"{dataset_name}_test{emotion_name}.pkl"
 
         all_data = []
         for filename in [train_file, dev_file, test_file]:
