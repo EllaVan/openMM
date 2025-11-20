@@ -70,6 +70,7 @@ def main(cfg: DictConfig):
 
     prior_matrix, au_names, emotion_names = load_au_emo_prior(cfg.prior.au_prior_path)
     num_emotions = len(emotion_names)
+    num_aus = len(au_names)
 
     logger.info(f"先验矩阵形状: {prior_matrix.shape}")
     logger.info(f"AU数量: {len(au_names)}")
@@ -91,7 +92,7 @@ def main(cfg: DictConfig):
         text_input_dim=cfg.network.text_dim,
         audio_input_dim=cfg.network.audio_dim,
         video_input_dim=cfg.network.video_dim,
-        num_aus=cfg.prior.num_aus,
+        num_aus=num_aus,
         num_emotions=num_emotions,
         encoder_hidden_dim=cfg.network.encoder_hidden_dim,
         encoder_output_dim=cfg.network.encoder_output_dim,

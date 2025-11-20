@@ -21,7 +21,7 @@ class LearnableAUEMOMatrix(nn.Module):
 
     数学框架：
     ----------
-    先验矩阵：P(AU|EMO) [num_aus, num_emotions]
+    先验矩阵：P(AU|EMO) [num_emotions, num_aus]
     输入：P(au_i|x) - 从样本x预测的AU概率 [batch, num_aus]
     输出：P(emo_k|x) - 情绪概率
 
@@ -36,8 +36,8 @@ class LearnableAUEMOMatrix(nn.Module):
     num_aus : int
         AU数量（例如23）
     num_emotions : int
-        情绪类别数量（例如6）
-    prior_p_au_given_emo : np.ndarray [num_aus, num_emotions]
+        情绪类别数量（例如7）
+    prior_p_au_given_emo : np.ndarray [num_emotions, num_aus]
         心理学先验 P(AU|EMO) 矩阵
     prior_strength : float
         正则化强度
@@ -62,7 +62,7 @@ class LearnableAUEMOMatrix(nn.Module):
 
         # 初始化 P(AU|EMO) 先验矩阵
         if prior_p_au_given_emo is None:
-            # 均匀先验
+            # 均匀先验：每个情绪下每个AU的激活概率
             prior_p_au_emo = np.ones((num_emotions, num_aus)) / num_aus
         else:
             prior_p_au_emo = np.array(prior_p_au_given_emo)
@@ -104,15 +104,16 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         获取当前的 P(AU|EMO) 概率矩阵
 
-        对logits在AU维度（dim=0）进行归一化，确保：
-        Σ_i P(AU_i|EMO_k) = 1 对于每个情绪k
+        对logits在情绪维度（dim=0）进行归一化，确保：
+        Σ_k P(AU_i|EMO_k) = 1 对于每个AU i
 
         Returns:
         --------
-        p_au_given_emo : torch.Tensor [num_aus, num_emotions]
-            P(AU_i|EMO_k) 概率矩阵
+        p_au_given_emo : torch.Tensor [num_emotions, num_aus]
+            P(AU_i|EMO_k) 概率矩阵，[k, i]表示给定情绪k，AU i的激活概率
         """
-        # 对每列（每个情绪）在AU维度上进行softmax
+        # 对每列（每个AU）在情绪维度上进行softmax
+        # 这样对于每个AU，所有情绪的概率和为1
         p_au_given_emo = F.softmax(self.matrix_logits, dim=0)
         return p_au_given_emo
 
@@ -120,8 +121,11 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         从AU概率预测情绪概率
 
-        使用正确的公式：
-        p(emo_k | x) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k)] * P(EMO_k)
+        使用正确的公式（由于softmax归一化，分母为1可消去）：
+        p(emo_k | x) ∝ ∏_i [P(au_i|x) * P(AU_i|EMO_k)] * P(EMO_k)
+
+        在对数空间：
+        log p(emo_k | x) = Σ_i [log P(au_i|x) + log P(AU_i|EMO_k)] + log P(EMO_k)
 
         Parameters:
         -----------
@@ -135,30 +139,26 @@ class LearnableAUEMOMatrix(nn.Module):
         emo_logits : torch.Tensor [batch_size, num_emotions]
             情绪预测对数概率
         """
-        # 获取 P(AU|EMO) 矩阵 [num_aus, num_emotions]
+        # 获取 P(AU|EMO) 矩阵 [num_emotions, num_aus]
         p_au_given_emo = self.get_probability_matrix()
 
         # 使用先验
         if emo_prior is None:
             emo_prior = self.emo_prior
 
-        # 计算分母：Σ_k P(AU_i|EMO_k) [num_aus]
-        # 对每个AU i，求所有情绪k的P(AU_i|EMO_k)之和
-        denominator = p_au_given_emo.sum(dim=1, keepdim=True)  # [num_aus, 1]
-
-        # 归一化：P(AU_i|EMO_k) / Σ_k P(AU_i|EMO_k) [num_aus, num_emotions]
-        normalized = p_au_given_emo / (denominator + 1e-10)
-
-        # 计算：P(au_i|x) * normalized
+        # 计算：P(au_i|x) * P(AU_i|EMO_k)
         # au_probs: [batch, num_aus]
-        # normalized: [num_aus, num_emotions]
-        # 结果: [batch, num_aus, num_emotions]
-        au_probs_expanded = au_probs.unsqueeze(2)  # [batch, num_aus, 1]
-        weighted = au_probs_expanded * normalized.unsqueeze(0)  # [batch, num_aus, num_emotions]
+        # p_au_given_emo: [num_emotions, num_aus]
+        # 扩展维度以便广播
+        au_probs_expanded = au_probs.unsqueeze(1)  # [batch, 1, num_aus]
+        p_au_emo_expanded = p_au_given_emo.unsqueeze(0)  # [1, num_emotions, num_aus]
 
-        # 取对数并求和：Σ_i log[P(au_i|x) * normalized]
+        # 逐元素相乘 [batch, num_emotions, num_aus]
+        weighted = au_probs_expanded * p_au_emo_expanded
+
+        # 在AU维度求和（对数空间）：Σ_i log[P(au_i|x) * P(AU_i|EMO_k)]
         # [batch, num_emotions]
-        emo_logits = torch.log(weighted + 1e-10).sum(dim=1)
+        emo_logits = torch.log(weighted + 1e-10).sum(dim=2)
 
         # 加上情绪先验的对数：log P(EMO_k)
         emo_logits = emo_logits + torch.log(emo_prior + 1e-10).unsqueeze(0)
@@ -342,27 +342,27 @@ class LearnableAUEMOMatrix(nn.Module):
 
         # 标题
         output.write(f"{title}\n")
-        output.write("=" * (15 + 12 * self.num_emotions) + "\n")
+        output.write("=" * (15 + 12 * self.num_aus) + "\n")
 
-        # 表头
-        output.write(f"{'AU':<15}")
-        for emo_name in emotion_names:
-            output.write(f"{emo_name:>12}")
+        # 表头（列是AU）
+        output.write(f"{'Emotion':<15}")
+        for au_name in au_names:
+            output.write(f"{au_name:>12}")
         output.write("\n")
-        output.write("-" * (15 + 12 * self.num_emotions) + "\n")
+        output.write("-" * (15 + 12 * self.num_aus) + "\n")
 
-        # 行
-        for i, au_name in enumerate(au_names):
-            output.write(f"{au_name:<15}")
-            for j in range(self.num_emotions):
+        # 行（每行是一个情绪）
+        for i, emo_name in enumerate(emotion_names):
+            output.write(f"{emo_name:<15}")
+            for j in range(self.num_aus):
                 output.write(f"{matrix[i, j]:>12.4f}")
             output.write("\n")
 
-        # 列和（应该都接近1.0）
-        output.write("-" * (15 + 12 * self.num_emotions) + "\n")
-        output.write(f"{'列和':<15}")
-        col_sums = matrix.sum(axis=0)
-        for j in range(self.num_emotions):
+        # 列和（每个AU在情绪维度的和，应该都接近1.0）
+        output.write("-" * (15 + 12 * self.num_aus) + "\n")
+        output.write(f"{'列和(AU)':<15}")
+        col_sums = matrix.sum(axis=0)  # 对每个AU，在情绪维度求和
+        for j in range(self.num_aus):
             output.write(f"{col_sums[j]:>12.4f}")
         output.write("\n")
 
@@ -377,12 +377,12 @@ def load_au_emo_prior(filepath: str) -> Tuple[np.ndarray, list, list]:
     {
         "au_names": ["AU1", "AU2", ...],
         "emotion_names": ["happy", "sad", ...],
-        "prior_matrix": [[...], ...]  # P(AU|EMO) [num_aus, num_emotions]
+        "prior_matrix": [[...], ...]  # P(AU|EMO) [num_emotions, num_aus]
     }
 
     Returns:
     --------
-    prior_matrix : np.ndarray [num_aus, num_emotions]
+    prior_matrix : np.ndarray [num_emotions, num_aus]
         P(AU|EMO) 矩阵
     au_names : list
     emotion_names : list
@@ -396,8 +396,8 @@ def load_au_emo_prior(filepath: str) -> Tuple[np.ndarray, list, list]:
 
     print(f"已从 {filepath} 加载 P(AU|EMO) 先验")
     print(f"  形状: {prior_matrix.shape}")
-    print(f"  AU数量: {len(au_names)}")
     print(f"  情绪数量: {len(emotion_names)}")
+    print(f"  AU数量: {len(au_names)}")
 
     return prior_matrix, au_names, emotion_names
 
@@ -408,13 +408,13 @@ if __name__ == "__main__":
 
     # 创建简单先验
     num_aus, num_emotions = 3, 2
+    # P(AU|EMO): [num_emotions, num_aus]
     prior_p = np.array([
-        [0.8, 0.2],  # AU0: 对EMO0有0.8概率，对EMO1有0.2概率
-        [0.3, 0.7],  # AU1: 对EMO0有0.3概率，对EMO1有0.7概率
-        [0.5, 0.5]   # AU2: 中性
+        [0.8, 0.3, 0.5],  # EMO0: 各AU的激活概率
+        [0.2, 0.7, 0.5]   # EMO1: 各AU的激活概率
     ])
 
-    # 归一化（确保每列和为1）
+    # 归一化（确保每列/每个AU在情绪维度上和为1）
     prior_p = prior_p / prior_p.sum(axis=0, keepdims=True)
 
     # 初始化矩阵
