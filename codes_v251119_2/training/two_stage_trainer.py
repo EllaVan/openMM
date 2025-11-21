@@ -439,6 +439,9 @@ class TwoStageTrainer:
             hidden_layers=hidden_layers
         ).to(self.device)
 
+        # 存储当前任务的情绪数量，用于后续生成权重
+        self.current_num_emotions = num_emotions
+
         # 优化器
         self.zeroshot_optimizer = optim.Adam(
             self.zeroshot_expander.parameters(),
@@ -571,8 +574,9 @@ class TwoStageTrainer:
         self.zeroshot_expander.eval()
 
         with torch.no_grad():
-            # 获取当前P(AU|EMO)
-            p_au_emo = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+            # 获取当前P(AU|EMO)，只取前current_num_emotions个（与zeroshotExpander的n一致）
+            p_au_emo_all = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+            p_au_emo = p_au_emo_all[:self.current_num_emotions]  # [current_num_emotions, num_aus]
 
             # 构建类语义特征
             class_embeddings = zeroshot_utils.get_class_embedding(
