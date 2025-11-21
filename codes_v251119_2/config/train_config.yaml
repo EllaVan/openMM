@@ -7,7 +7,7 @@ data:
   num_workers: 4
   train_ratio: 0.8
   shuffle_train: true
-  seed: 42
+  seed: 2025
 
 # ==================== 模型配置 ====================
 model:
