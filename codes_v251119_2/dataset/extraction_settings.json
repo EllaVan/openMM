@@ -66,7 +66,7 @@
     "video_sample_rate_fps": 5,
     "max_frames": 300,
     "video_batch_size": 64,
-    "description": "视频采样：5fps，最多300帧"
+    "description": "视频采样：5fps，使用渐进式聚合处理任意长度视频 (max_frames 参数已废弃，不再限制帧数)"
   },
 
   "performance": {
