@@ -22,7 +22,7 @@
       },
       "unseen_emotions": {
         "surprise": 2,
-        "disgust": 5
+        "disgust": 3
       },
       "description": "Task 0: MOSEI dataset, learn happy and sad, encounter surprise and disgust"
     },
@@ -33,10 +33,10 @@
       "data_dir": "/media/sda/wf/openMM/Data/v251112/mosei_utterance_features",
       "seen_emotions": {
         "happy": 0,
-        "anger": 3
+        "anger": 4
       },
       "unseen_emotions": {
-        "fear": 4
+        "fear": 5
       },
       "description": "Task 1: MOSEI dataset, happy already known, learn anger, encounter fear"
     },
@@ -46,13 +46,13 @@
       "dataset_name": "MELD",
       "data_dir": "/media/sda/wf/openMM/Data/v251112/meld_utterance_features",
       "seen_emotions": {
-        "anger": 3,
+        "anger": 4,
         "surprise": 2,
         "joy": 6
       },
       "unseen_emotions": {
-        "disgust": 5,
-        "fear": 4
+        "disgust": 3,
+        "fear": 5
       },
       "description": "Task 2: MELD dataset, cross-dataset continual learning with anger, surprise, joy"
     }

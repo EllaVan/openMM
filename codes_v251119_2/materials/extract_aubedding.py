@@ -32,5 +32,5 @@ au_vectors = F.normalize(au_vectors)
 for i in range(len(au_name)):
     au_embedding[au_name[i]] = au_vectors[i]
 with open('/media/sda/wf/openMM/codes_v251119_2/materials/au_embedding.pt', 'wb') as f:
-    torch.save(au_vectors, f)
+    torch.save(au_embedding, f)
 end = 1
