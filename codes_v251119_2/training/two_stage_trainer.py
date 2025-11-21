@@ -138,6 +138,21 @@ class TwoStageTrainer:
         self.logger.info(f"  Unseen情绪: {task_info['unseen_emotions']}")
         self.logger.info(f"{'='*80}")
 
+        # 扩展分类器以适应新的类别数
+        num_classes_so_far = task_info['num_classes_so_far']
+        self.logger.info(f"\n检查分类器维度...")
+        self.logger.info(f"  当前类别数: {self.model.num_emotions}")
+        self.logger.info(f"  需要类别数: {num_classes_so_far}")
+
+        if num_classes_so_far > self.model.num_emotions:
+            self.model.expand_classifiers(num_classes_so_far)
+            # 更新优化器以包含新参数
+            self.optimizer = optim.Adam(
+                self.model.parameters(),
+                lr=self.config['training']['learning_rate']
+            )
+            self.logger.info(f"  优化器已更新")
+
         task_stats = {
             'task_id': task_id,
             'task_name': task_name,
