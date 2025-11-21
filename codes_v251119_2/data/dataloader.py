@@ -533,6 +533,250 @@ def load_all_tasks(
     return tasks_data
 
 
+def create_task_dataloaders_separated(
+    task_config_path: str,
+    task_id: int,
+    label_mapper: Optional[IncrementalLabelMapper] = None,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    train_ratio: float = 0.8,
+    shuffle_train: bool = True,
+    seed: int = 42
+) -> Tuple[Dict[str, DataLoader], Dict[str, DataLoader], IncrementalLabelMapper, Dict]:
+    """
+    为指定任务创建seen/unseen分离的数据加载器
+
+    Args:
+        task_config_path: 任务配置JSON文件路径
+        task_id: 任务ID
+        label_mapper: 标签映射器（如果为None则创建新的）
+        batch_size: batch大小
+        num_workers: 工作进程数
+        train_ratio: 训练集比例
+        shuffle_train: 是否打乱训练集
+        seed: 随机种子
+
+    Returns:
+        train_loaders: {'seen': DataLoader, 'unseen': DataLoader}
+        test_loaders: {'seen': DataLoader, 'unseen': DataLoader}
+        label_mapper: 更新后的标签映射器
+        task_info: 任务信息字典
+    """
+    # 1. 加载任务配置
+    print(f"\n{'='*80}")
+    print(f"加载任务配置: {task_config_path}")
+    print(f"{'='*80}")
+
+    with open(task_config_path, 'r') as f:
+        config = json.load(f)
+
+    if task_id >= len(config['tasks']):
+        raise ValueError(f"任务ID {task_id} 超出范围 (总任务数: {len(config['tasks'])})")
+
+    task_cfg = config['tasks'][task_id]
+
+    # 支持每个任务使用不同的数据集和数据目录
+    dataset_name = task_cfg.get('dataset_name', config.get('default_dataset', 'MOSEI'))
+    data_dir = task_cfg.get('data_dir', config.get('default_data_dir', '../../output/mosei_features'))
+
+    print(f"\n任务信息:")
+    print(f"  Task ID: {task_cfg['task_id']}")
+    print(f"  Task Name: {task_cfg['task_name']}")
+    print(f"  Description: {task_cfg.get('description', 'N/A')}")
+    print(f"  Dataset: {dataset_name}")
+    print(f"  Data Dir: {data_dir}")
+
+    # 2. 创建或更新标签映射器
+    if label_mapper is None:
+        label_mapper = IncrementalLabelMapper()
+
+    mapping_info = label_mapper.add_task(
+        task_id=task_id,
+        seen_emotions=task_cfg['seen_emotions'],
+        unseen_emotions=task_cfg.get('unseen_emotions', {})
+    )
+
+    # 3. 分别加载seen和unseen数据
+    print(f"\n{'='*70}")
+    print(f"加载数据文件（seen/unseen分离）...")
+    print(f"{'='*70}")
+
+    seen_data = []
+    unseen_data = []
+
+    # 3.1 加载seen emotions
+    print(f"\n[Seen Emotions]")
+    for emotion_name, original_label in task_cfg['seen_emotions'].items():
+        incremental_label = label_mapper.get_incremental_label(original_label)
+
+        print(f"  加载 {emotion_name} (原始={original_label}, 增量={incremental_label})...")
+
+        emotion_data = load_emotion_pkl(data_dir, dataset_name, emotion_name, original_label)
+
+        if len(emotion_data) == 0:
+            print(f"    警告: 没有数据")
+            continue
+
+        # 添加标签信息
+        for item in emotion_data:
+            item['original_label'] = original_label
+            item['label'] = incremental_label
+            item['is_seen'] = True
+            item['emotion_name'] = emotion_name
+
+        seen_data.extend(emotion_data)
+        print(f"    加载了 {len(emotion_data)} 个样本")
+
+    # 3.2 加载unseen emotions
+    unseen_emotions = task_cfg.get('unseen_emotions', {})
+    if unseen_emotions:
+        print(f"\n[Unseen Emotions]")
+        for emotion_name, original_label in unseen_emotions.items():
+            incremental_label = label_mapper.get_incremental_label(original_label)
+
+            print(f"  加载 {emotion_name} (原始={original_label}, 增量={incremental_label})...")
+
+            emotion_data = load_emotion_pkl(data_dir, dataset_name, emotion_name, original_label)
+
+            if len(emotion_data) == 0:
+                print(f"    警告: 没有数据")
+                continue
+
+            # 添加标签信息
+            for item in emotion_data:
+                item['original_label'] = original_label
+                item['label'] = incremental_label
+                item['is_seen'] = False
+                item['emotion_name'] = emotion_name
+
+            unseen_data.extend(emotion_data)
+            print(f"    加载了 {len(emotion_data)} 个样本")
+
+    # 4. 分别划分训练集和测试集
+    print(f"\n{'='*70}")
+    print(f"划分训练集和测试集 (比例: {train_ratio:.2f})")
+    print(f"{'='*70}")
+
+    # Seen数据划分
+    np.random.shuffle(seen_data)
+    seen_train_size = int(len(seen_data) * train_ratio)
+    seen_train_data = seen_data[:seen_train_size]
+    seen_test_data = seen_data[seen_train_size:]
+
+    # Unseen数据划分
+    unseen_train_data = []
+    unseen_test_data = []
+    if len(unseen_data) > 0:
+        np.random.shuffle(unseen_data)
+        unseen_train_size = int(len(unseen_data) * train_ratio)
+        unseen_train_data = unseen_data[:unseen_train_size]
+        unseen_test_data = unseen_data[unseen_train_size:]
+
+    # 5. 创建Dataset
+    seen_train_dataset = ContinualLearningDataset(seen_train_data)
+    seen_test_dataset = ContinualLearningDataset(seen_test_data)
+
+    # 打印统计信息
+    seen_train_stats = seen_train_dataset.get_stats()
+    seen_test_stats = seen_test_dataset.get_stats()
+
+    print(f"\n[Seen] 训练集统计:")
+    print(f"  总样本数: {seen_train_stats['total']}")
+    print(f"  情绪分布: {seen_train_stats['emotion_counts']}")
+
+    print(f"\n[Seen] 测试集统计:")
+    print(f"  总样本数: {seen_test_stats['total']}")
+    print(f"  情绪分布: {seen_test_stats['emotion_counts']}")
+
+    # 6. 创建DataLoader
+    seen_train_loader = DataLoader(
+        seen_train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle_train,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        pin_memory=True
+    )
+
+    seen_test_loader = DataLoader(
+        seen_test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        pin_memory=True
+    )
+
+    train_loaders = {'seen': seen_train_loader}
+    test_loaders = {'seen': seen_test_loader}
+
+    # Unseen数据加载器（如果有）
+    if len(unseen_train_data) > 0:
+        unseen_train_dataset = ContinualLearningDataset(unseen_train_data)
+        unseen_test_dataset = ContinualLearningDataset(unseen_test_data)
+
+        unseen_train_stats = unseen_train_dataset.get_stats()
+        unseen_test_stats = unseen_test_dataset.get_stats()
+
+        print(f"\n[Unseen] 训练集统计:")
+        print(f"  总样本数: {unseen_train_stats['total']}")
+        print(f"  情绪分布: {unseen_train_stats['emotion_counts']}")
+
+        print(f"\n[Unseen] 测试集统计:")
+        print(f"  总样本数: {unseen_test_stats['total']}")
+        print(f"  情绪分布: {unseen_test_stats['emotion_counts']}")
+
+        unseen_train_loader = DataLoader(
+            unseen_train_dataset,
+            batch_size=batch_size,
+            shuffle=shuffle_train,
+            num_workers=num_workers,
+            collate_fn=collate_fn,
+            pin_memory=True
+        )
+
+        unseen_test_loader = DataLoader(
+            unseen_test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            collate_fn=collate_fn,
+            pin_memory=True
+        )
+
+        train_loaders['unseen'] = unseen_train_loader
+        test_loaders['unseen'] = unseen_test_loader
+    else:
+        print(f"\n[Unseen] 无unseen数据")
+
+    print(f"\nDataLoader创建完成:")
+    print(f"  Seen训练批次数: {len(train_loaders['seen'])}")
+    print(f"  Seen测试批次数: {len(test_loaders['seen'])}")
+    if 'unseen' in train_loaders:
+        print(f"  Unseen训练批次数: {len(train_loaders['unseen'])}")
+        print(f"  Unseen测试批次数: {len(test_loaders['unseen'])}")
+    print(f"  Batch大小: {batch_size}")
+    print(f"{'='*80}\n")
+
+    # 7. 任务信息
+    task_info = {
+        'task_id': task_id,
+        'task_name': task_cfg['task_name'],
+        'dataset_name': dataset_name,
+        'data_dir': data_dir,
+        'seen_emotions': task_cfg['seen_emotions'],
+        'unseen_emotions': task_cfg.get('unseen_emotions', {}),
+        'mapping_info': mapping_info,
+        'seen_train_stats': seen_train_stats,
+        'seen_test_stats': seen_test_stats,
+        'unseen_train_stats': unseen_train_stats if len(unseen_train_data) > 0 else None,
+        'unseen_test_stats': unseen_test_stats if len(unseen_test_data) > 0 else None,
+        'num_classes_so_far': label_mapper.get_num_classes_so_far()
+    }
+
+    return train_loaders, test_loaders, label_mapper, task_info
+
+
 if __name__ == "__main__":
     """测试代码"""
     print("="*80)
