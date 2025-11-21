@@ -329,19 +329,22 @@ class LearnableAUEMOMatrix(nn.Module):
         temperature = self.num_aus  # 23
         full_emo_logits = full_emo_logits / temperature
 
-        # 增量学习：只返回激活的情绪
-        if self.num_active_emotions == 0:
-            # 如果没有激活任何情绪，返回空tensor
-            return torch.zeros(au_probs.size(0), 0, device=au_probs.device)
+        # 对非激活情绪mask为-inf
+        # 创建mask: [num_emotions]，激活的为0，非激活的为-inf
+        mask = torch.zeros(self.num_emotions, device=au_probs.device)
+        mask[~self.active_mask] = float('-inf')
 
-        # 提取激活情绪的logits [batch, num_active]
-        active_emo_logits = full_emo_logits[:, self.active_mask]
+        # 应用mask: [batch, num_emotions] + [num_emotions]
+        masked_logits = full_emo_logits + mask.unsqueeze(0)
 
         # 数值稳定化：减去最大值（标准log-sum-exp trick）
-        # 这不会改变softmax的结果，但避免exp溢出
-        active_emo_logits = active_emo_logits - active_emo_logits.max(dim=1, keepdim=True)[0]
+        # 只对激活的情绪计算最大值
+        if self.num_active_emotions > 0:
+            active_logits = full_emo_logits[:, self.active_mask]
+            max_val = active_logits.max(dim=1, keepdim=True)[0]
+            masked_logits = masked_logits - max_val
 
-        return active_emo_logits
+        return masked_logits
 
     def compute_regularization_loss(self) -> torch.Tensor:
         """

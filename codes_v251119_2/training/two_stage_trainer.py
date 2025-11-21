@@ -250,17 +250,15 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels_global = batch['label'].to(self.device)  # 全局增量标签
-
-                # 转换为局部激活索引
-                labels_local = self.model.au_emo_matrix.global_to_local_labels(labels_global)
+                labels = batch['label'].to(self.device)  # 全局增量标签
 
                 # 前向传播
                 outputs = self.model(text, audio, video)
 
-                # 损失：AU路径 + 直接分类（使用局部标签）
-                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels_local)
-                loss_direct = F.cross_entropy(outputs['emo_direct'], labels_local)
+                # 损失：AU路径 + 直接分类
+                # 输出是[batch, num_emotions]，非激活情绪已mask为-inf
+                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
 
                 loss = loss_au_path + 0.1 * loss_direct
 
@@ -286,8 +284,8 @@ class TwoStageTrainer:
                 num_batches += 1
 
                 preds = outputs['emo_from_au'].argmax(dim=1)
-                correct += (preds == labels_local).sum().item()
-                total += labels_local.size(0)
+                correct += (preds == labels).sum().item()
+                total += labels.size(0)
 
                 progress_bar.set_postfix({
                     'loss': loss.item(),
@@ -615,16 +613,13 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels_global = batch['label'].to(self.device)
-
-                # 转换为局部标签
-                labels_local = self.model.au_emo_matrix.global_to_local_labels(labels_global)
+                labels = batch['label'].to(self.device)
 
                 outputs = self.model(text, audio, video)
                 preds = outputs['emo_from_au'].argmax(dim=1)
 
-                correct += (preds == labels_local).sum().item()
-                total += labels_local.size(0)
+                correct += (preds == labels).sum().item()
+                total += labels.size(0)
 
         return correct / total if total > 0 else 0.0
 
