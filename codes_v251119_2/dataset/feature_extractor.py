@@ -10,6 +10,11 @@ import torch
 import numpy as np
 from typing import Dict, Tuple
 from pathlib import Path
+import tempfile
+import subprocess  # 用于调用 OpenFace 命令
+import pandas as pd
+
+openface_dir = '/media/sda/pingjm/OpenFace-master/build/bin'  # OpenFace 可执行文件路径
 
 
 class UtteranceFeatureExtractor:
@@ -187,6 +192,35 @@ class UtteranceFeatureExtractor:
         features = np.mean(features, axis=0)  # [768]
 
         return torch.from_numpy(features).float()
+    
+    def extract_face_features(self, video_path, video_id, clip_id, selected_frame_indices):
+    # 创建一个临时目录用于存放 OpenFace 输出
+        with tempfile.TemporaryDirectory() as output_dir:
+
+            # output_path = os.path.join(output_dir, f"{video_id}_{clip_id}.csv")
+            output_path = os.path.join(output_dir, f"{clip_id}.csv")
+            
+            # 调用 OpenFace
+            command = f"{openface_dir}/FeatureExtraction -f {video_path} -out_dir {output_dir}"
+            subprocess.run(command, shell=True)
+            
+            # 检查 OpenFace 输出的特征文件
+            if os.path.exists(output_path):
+                face_features_df = pd.read_csv(output_path)
+                
+                # 使用指定帧编号的特征数据
+                face_features_df = face_features_df[face_features_df['frame'].isin(selected_frame_indices)]
+                
+                # 检查并替换 NaN 值为 0
+                face_features_df = face_features_df.fillna(0)
+                
+                # 提取 AU (动作单元) 和其他相关特征，按列求平均值
+                face_features = face_features_df.iloc[:, 3:]  # 跳过前三列的非特征数据    
+
+                return face_features
+            else:
+                print(f"OpenFace 无法处理视频 {video_path}")
+                return None
 
     def extract_video_features(self, video_path: str) -> torch.Tensor:
         """

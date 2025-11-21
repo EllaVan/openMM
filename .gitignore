@@ -24,4 +24,5 @@ codes_v251119_2/outputs/
 codes_v251119_2/output/
 codes_v251119_2/checkpoints/
 codes_v251119_2/training/__pycache__
-codes_v251119_2/data/
+codes_v251119_2/dataloader/
+codes_v251119_2/demo/
