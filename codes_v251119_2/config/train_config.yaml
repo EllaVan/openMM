@@ -1,0 +1,84 @@
+# Zero-shot Continual Learning Configuration
+
+# ==================== 数据配置 ====================
+data:
+  task_config_path: "codes_v251119_2/config/tasks.json"
+  batch_size: 32
+  num_workers: 4
+  train_ratio: 0.8
+  shuffle_train: true
+  seed: 42
+
+# ==================== 模型配置 ====================
+model:
+  # 输入维度
+  text_input_dim: 768
+  audio_input_dim: 768
+  video_input_dim: 768
+
+  # AU和情绪
+  num_aus: 20  # 实际使用的AU数量（前20个）
+  num_emotions: 7  # 总情绪类别数
+
+  # 网络架构
+  encoder_hidden_dim: 256
+  encoder_output_dim: 256
+  hypergraph_hidden_dim: 256
+  num_hyperedges: 64
+  num_conv_layers: 2
+  dropout: 0.1
+
+  # AU-EMO先验
+  prior_strength: 0.1
+
+# ==================== 训练配置 ====================
+training:
+  # 优化器
+  learning_rate: 0.0001
+  gradient_clip: 1.0
+
+  # 阶段1: Seen训练
+  stage1_epochs: 20
+  warmup_epochs: 3  # 仅Task 0
+
+  # 阶段2: Unseen Zero-shot
+  em_iterations: 20  # EM迭代次数
+  epochs_per_em: 10  # 每次E步训练的epoch数
+  convergence_threshold: 0.95  # 收敛阈值（agreement）
+
+  # Zero-shot Expander
+  zeroshot_lr: 0.001
+  zeroshot_hidden_layers: "d512,d1024,d512,d"  # 隐藏层配置
+
+# ==================== 持续学习配置 ====================
+continual_learning:
+  # EWC
+  use_ewc: true
+  ewc_lambda: 1000
+
+  # 损失权重
+  seen_loss_weight: 1.0
+  unseen_loss_weight: 0.3
+  matrix_reg_lambda: 0.01
+
+  # 一致性检查
+  consistency_strategy: "entropy_threshold"  # all_agree, majority, weighted_vote, entropy_threshold, combined
+  min_confidence: 0.7
+
+# ==================== Beta先验配置 ====================
+beta_prior:
+  pseudo_count: 2.0  # Beta分布的伪计数（控制先验强度）
+
+# ==================== 文件路径配置 ====================
+paths:
+  au_emo_prior: "codes_v251119_2/materials/au_emo_prior.json"
+  au_embedding: "codes_v251119_2/materials/au_embedding.pt"
+
+# ==================== 输出配置 ====================
+output:
+  save_dir: "output/zeroshot_continual"
+  save_frequency: 5  # 每N个epoch保存一次
+  log_dir: "output/logs"
+
+# ==================== 设备配置 ====================
+device: "cuda"  # cuda或cpu
