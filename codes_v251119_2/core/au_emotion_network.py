@@ -271,15 +271,22 @@ class AUEmotionNetwork(nn.Module):
         au_probs = self.au_predictor(fused_features)
 
         # 4. 通过AU-EMO矩阵预测情绪（主路径）
+        # 返回: [batch_size, num_emotions]，非激活情绪mask为-inf
         emo_from_au = self.au_emo_matrix(au_probs)
 
         # 5. 直接情绪分类（辅助路径）
-        emo_direct = self.emotion_classifier(fused_features)
+        # 得到所有情绪的logits，然后对非激活情绪mask
+        emo_direct_all = self.emotion_classifier(fused_features)  # [batch_size, num_emotions]
+
+        # 应用相同的mask（非激活情绪设为-inf）
+        mask = torch.zeros(self.num_emotions, device=fused_features.device)
+        mask[~self.au_emo_matrix.active_mask] = float('-inf')
+        emo_direct = emo_direct_all + mask.unsqueeze(0)  # [batch_size, num_emotions]
 
         return {
             'au_probs': au_probs,
-            'emo_from_au': emo_from_au,
-            'emo_direct': emo_direct,
+            'emo_from_au': emo_from_au,  # [batch_size, num_emotions] with mask
+            'emo_direct': emo_direct,    # [batch_size, num_emotions] with mask
             'fused_features': fused_features
         }
 

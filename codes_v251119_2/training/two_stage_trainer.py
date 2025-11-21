@@ -153,6 +153,23 @@ class TwoStageTrainer:
             )
             self.logger.info(f"  优化器已更新")
 
+        # 激活当前任务的所有情绪（seen + unseen）
+        self.logger.info(f"\n激活当前任务情绪...")
+
+        # 激活seen情绪
+        for emotion_name, global_id in task_info['seen_emotions'].items():
+            # 获取增量标签
+            incremental_label = task_info['mapping_info']['seen_mapping'][emotion_name]
+            self.model.au_emo_matrix.add_emotion(emotion_name, incremental_label)
+
+        # 激活unseen情绪
+        for emotion_name, global_id in task_info['unseen_emotions'].items():
+            # 获取增量标签
+            incremental_label = task_info['mapping_info']['unseen_mapping'][emotion_name]
+            self.model.au_emo_matrix.add_emotion(emotion_name, incremental_label)
+
+        self.logger.info(f"  当前激活情绪数: {self.model.au_emo_matrix.num_active_emotions}")
+
         task_stats = {
             'task_id': task_id,
             'task_name': task_name,
@@ -233,12 +250,13 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels = batch['label'].to(self.device)
+                labels = batch['label'].to(self.device)  # 全局增量标签
 
                 # 前向传播
                 outputs = self.model(text, audio, video)
 
                 # 损失：AU路径 + 直接分类
+                # 输出是[batch, num_emotions]，非激活情绪已mask为-inf
                 loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
                 loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
 
