@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# #5、#6、#7，设计的原因？为什么有#5?没有微调的数据。我们在推理时主要选择分类器权重，也就是直接推理，但是在训练时需要用直接推理的结果和AU分类的结果更新unseen的P(AU|EMO)
 
 class GraphConv(nn.Module):
 
