@@ -412,8 +412,9 @@ class TwoStageTrainer:
         Returns:
             final_loss: 最终的训练损失
         """
-        # 获取当前P(AU|EMO)
-        p_au_emo = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+        # 获取当前P(AU|EMO)，只取前num_emotions个（即num_classes_so_far）
+        p_au_emo_all = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+        p_au_emo = p_au_emo_all[:num_emotions]  # [num_classes_so_far, num_aus]
 
         # 构建转换矩阵
         trans_matrix = zeroshot_utils.get_transition_matrix(p_au_emo)
