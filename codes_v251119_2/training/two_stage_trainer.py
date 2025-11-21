@@ -243,7 +243,7 @@ class TwoStageTrainer:
             total = 0
             num_batches = 0
 
-            progress_bar = tqdm(train_loader, desc=f'Stage1 Epoch {epoch+1}/{num_epochs}', ncols=100)
+            progress_bar = tqdm(train_loader, desc=f'Stage1 Epoch {epoch+1}/{num_epochs}', ncols=80)
 
             for batch in progress_bar:
                 # 获取数据
@@ -414,7 +414,7 @@ class TwoStageTrainer:
         """
         # # 获取当前P(AU|EMO)
         # p_au_emo = self.beta_prior.get_p_au_given_emo().cpu().numpy()
-        
+
         # 获取当前P(AU|EMO)，只取前num_emotions个（即num_classes_so_far）
         p_au_emo_all = self.beta_prior.get_p_au_given_emo().cpu().numpy()
         p_au_emo = p_au_emo_all[:num_emotions]  # [num_classes_so_far, num_aus]
@@ -441,6 +441,8 @@ class TwoStageTrainer:
             out_channels=weight_dim,
             hidden_layers=hidden_layers
         ).to(self.device)
+
+        self.current_num_emotions = num_emotions
 
         # 优化器
         self.zeroshot_optimizer = optim.Adam(
@@ -574,8 +576,12 @@ class TwoStageTrainer:
         self.zeroshot_expander.eval()
 
         with torch.no_grad():
-            # 获取当前P(AU|EMO)
-            p_au_emo = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+            # # 获取当前P(AU|EMO)
+            # p_au_emo = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+
+            # 获取当前P(AU|EMO)，只取前current_num_emotions个（与zeroshotExpander的n一致）
+            p_au_emo_all = self.beta_prior.get_p_au_given_emo().cpu().numpy()
+            p_au_emo = p_au_emo_all[:self.current_num_emotions]  # [current_num_emotions, num_aus]
 
             # 构建类语义特征
             class_embeddings = zeroshot_utils.get_class_embedding(
