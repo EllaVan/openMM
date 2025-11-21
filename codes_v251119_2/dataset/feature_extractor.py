@@ -310,11 +310,13 @@ class UtteranceFeatureExtractor:
 
         try:
             # 调用 OpenFace FeatureExtraction
+            # 使用与 ViT 相同的采样率确保帧一致性
             cmd = [
                 self.openface_executable,
                 '-f', video_path,
                 '-out_dir', temp_dir,
-                '-aus'  # 只提取 AU 特征
+                '-aus',  # 只提取 AU 特征
+                '-fps', str(self.video_sample_rate)  # 使用相同的5fps采样率
             ]
 
             result = subprocess.run(
