@@ -6,7 +6,7 @@
     "base_dir": "/media/sda/wf/openMM/Datasets/MOSEI",
     "label_file": "/media/sda/wf/openMM/Datasets/MOSEI/merged_label_new.csv",
     "output_dir": "./output/mosei_utterance_features",
-    "enabled": false,
+    "enabled": true,
     "description": "MOSEI 数据集配置，设置 enabled=true 启用提取",
     "stats": {
       "total_samples": 22856,
