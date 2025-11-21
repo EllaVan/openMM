@@ -314,12 +314,19 @@ class UtteranceFeatureExtractor:
         try:
             # 调用 OpenFace FeatureExtraction
             # 使用与 ViT 相同的采样率确保帧一致性
+            # 只提取 AU 特征，禁用其他所有特征以加速处理
             cmd = [
                 self.openface_executable,
                 '-f', video_path,
                 '-out_dir', temp_dir,
                 '-aus',  # 只提取 AU 特征
-                '-fps', str(self.video_sample_rate)  # 使用相同的5fps采样率
+                '-fps', str(self.video_sample_rate),  # 使用相同的5fps采样率
+                '-q',  # 安静模式，减少输出
+                '-no-2Dfp',  # 不提取 2D 面部特征点
+                '-no-3Dfp',  # 不提取 3D 面部特征点
+                '-no-pose',  # 不提取头部姿态
+                '-no-gaze',  # 不提取眼睛注视方向
+                '-no-hogalign',  # 不提取 HOG 特征
             ]
 
             result = subprocess.run(
