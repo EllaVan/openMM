@@ -326,14 +326,14 @@ class TwoStageTrainer:
                 num_epochs_per_em
             )
 
-            # 生成unseen权重
-            unseen_weights = self._generate_unseen_weights()
+            # 生成所有情绪的权重
+            all_weights = self._generate_all_weights()
 
             # M步：更新P(AU|EMO)
             self.logger.info(f"\n[M-Step] 更新 P(AU|EMO)...")
             m_step_stats = self._em_m_step(
                 train_loader,
-                unseen_weights,
+                all_weights,
                 unseen_indices
             )
 
@@ -341,7 +341,7 @@ class TwoStageTrainer:
             converged = m_step_stats['agreement'] >= self.config.get('convergence_threshold', 0.95)
 
             # 评估
-            test_acc = self._evaluate_unseen(test_loader, unseen_weights)
+            test_acc = self._evaluate_unseen(test_loader, all_weights, unseen_indices)
 
             em_stats.append({
                 'em_iteration': em_iter + 1,
@@ -360,9 +360,9 @@ class TwoStageTrainer:
                 self.logger.info(f"✓ 收敛于第 {em_iter+1} 次迭代")
                 break
 
-        # 保存最终的unseen权重
-        final_unseen_weights = self._generate_unseen_weights()
-        self._save_unseen_weights(task_info['task_id'], final_unseen_weights, unseen_indices)
+        # 保存最终的所有权重（包括seen和unseen）
+        final_all_weights = self._generate_all_weights()
+        self._save_classifier_weights(task_info['task_id'], final_all_weights, unseen_indices)
 
         return em_stats
 
@@ -448,13 +448,18 @@ class TwoStageTrainer:
     def _em_m_step(
         self,
         train_loader: DataLoader,
-        unseen_weights: torch.Tensor,
+        all_weights: torch.Tensor,
         unseen_indices: List[int]
     ) -> Dict:
         """
         EM的M步：固定zeroshotExpander，更新P(AU|EMO)
 
         用unseen样本进行推理，累积统计量并更新Beta参数
+
+        Args:
+            train_loader: Unseen训练数据
+            all_weights: 所有情绪的分类器权重 [num_classes_so_far, weight_dim]
+            unseen_indices: Unseen情绪的全局索引列表
 
         Returns:
             stats: {'agreement': float, 'num_observations': int}
@@ -480,38 +485,35 @@ class TwoStageTrainer:
                 # 前向传播获取AU概率
                 outputs = self.model(text, audio, video)
                 au_probs = outputs['au_probs']  # [batch_size, num_aus]
+                fused_features = outputs['fused_features']  # [batch_size, weight_dim]
 
-                # 直接分类：用unseen权重计算logits
-                fused_features = outputs['fused_features']  # [batch_size, feature_dim]
-
-                # unseen_weights: [num_unseen, weight_dim]
+                # 直接分类：用所有权重计算logits（包括seen+unseen）
+                # all_weights: [num_classes_so_far, weight_dim]
                 # fused_features: [batch_size, weight_dim]
-                # logits: [batch_size, num_unseen]
-                logits_unseen = torch.mm(fused_features, unseen_weights.t())
-                pseudo_labels_local = logits_unseen.argmax(dim=1)  # [batch_size] - 局部索引(0, 1, ...)
-
-                # 转换为全局情绪索引
-                pseudo_labels_global = torch.tensor(
-                    [unseen_indices[idx.item()] for idx in pseudo_labels_local],
-                    device=self.device
-                )
+                # logits: [batch_size, num_classes_so_far]
+                logits_all = torch.mm(fused_features, all_weights.t())
+                pseudo_labels = logits_all.argmax(dim=1)  # [batch_size] - 全局索引
 
                 # AU路径分类：通过AU-EMO矩阵
-                emo_from_au_logits = outputs['emo_from_au']  # [batch_size, num_total_emotions]
-                # 只取unseen情绪的logits
-                emo_from_au_unseen = emo_from_au_logits[:, unseen_indices]
-                au_labels_local = emo_from_au_unseen.argmax(dim=1)
+                emo_from_au_logits = outputs['emo_from_au']  # [batch_size, num_classes_so_far]
+                au_labels = emo_from_au_logits.argmax(dim=1)  # [batch_size] - 全局索引
 
-                # 一致性检查
-                agreement = (pseudo_labels_local == au_labels_local).float().mean().item()
+                # 一致性检查（两种方式的预测是否一致）
+                agreement = (pseudo_labels == au_labels).float().mean().item()
                 total_agreement += agreement * batch_size
                 total_samples += batch_size
 
-                # 累积观测统计量
-                self.beta_prior.accumulate_observations(
-                    emotion_indices=pseudo_labels_global,
-                    au_probs=au_probs
-                )
+                # 累积观测统计量（只对unseen情绪）
+                # 过滤出被预测为unseen类别的样本
+                is_unseen_pred = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
+                for idx in unseen_indices:
+                    is_unseen_pred |= (pseudo_labels == idx)
+
+                if is_unseen_pred.any():
+                    self.beta_prior.accumulate_observations(
+                        emotion_indices=pseudo_labels[is_unseen_pred],
+                        au_probs=au_probs[is_unseen_pred]
+                    )
 
         # 批量更新Beta参数
         self.beta_prior.update_beta_parameters(unseen_indices)
@@ -525,12 +527,12 @@ class TwoStageTrainer:
 
         return stats
 
-    def _generate_unseen_weights(self) -> torch.Tensor:
+    def _generate_all_weights(self) -> torch.Tensor:
         """
-        用当前的zeroshotExpander生成unseen分类器权重
+        用当前的zeroshotExpander生成所有情绪的分类器权重
 
         Returns:
-            unseen_weights: [num_unseen, weight_dim]
+            all_weights: [num_classes_so_far, weight_dim]
         """
         self.zeroshot_expander.eval()
 
@@ -545,7 +547,7 @@ class TwoStageTrainer:
             ).to(self.device)
 
             # 生成所有情绪的权重
-            all_weights = self.zeroshot_expander(class_embeddings)  # [num_emotions, weight_dim]
+            all_weights = self.zeroshot_expander(class_embeddings)  # [num_classes_so_far, weight_dim]
 
         return all_weights
 
@@ -591,9 +593,20 @@ class TwoStageTrainer:
     def _evaluate_unseen(
         self,
         test_loader: DataLoader,
-        unseen_weights: torch.Tensor
+        all_weights: torch.Tensor,
+        unseen_indices: List[int]
     ) -> float:
-        """评估unseen样本的准确率"""
+        """
+        评估unseen样本的准确率
+
+        Args:
+            test_loader: Unseen测试数据
+            all_weights: 所有情绪的分类器权重 [num_classes_so_far, weight_dim]
+            unseen_indices: Unseen情绪的全局索引
+
+        Returns:
+            accuracy: 准确率
+        """
         self.model.eval()
 
         correct = 0
@@ -604,38 +617,40 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels = batch['label'].to(self.device)  # 全局标签
+                labels = batch['label'].to(self.device)  # 全局增量标签
 
                 # 获取特征
                 outputs = self.model(text, audio, video)
-                fused_features = outputs['fused_features']
+                fused_features = outputs['fused_features']  # [batch_size, weight_dim]
 
-                # 用unseen权重分类（注意：这里需要处理标签映射）
-                # TODO: 需要正确处理全局标签到局部unseen索引的映射
-                logits = torch.mm(fused_features, unseen_weights.t())
-                preds_local = logits.argmax(dim=1)
+                # 用所有权重分类
+                # all_weights: [num_classes_so_far, weight_dim]
+                logits = torch.mm(fused_features, all_weights.t())  # [batch_size, num_classes_so_far]
+                preds = logits.argmax(dim=1)  # [batch_size] - 全局索引
 
-                # 简化版：暂时只统计
+                # 计算准确率（预测和真实标签都是全局索引）
+                correct += (preds == labels).sum().item()
                 total += labels.size(0)
 
-        # TODO: 正确实现准确率计算
-        return 0.0
+        accuracy = correct / total if total > 0 else 0.0
+        return accuracy
 
-    def _save_unseen_weights(
+    def _save_classifier_weights(
         self,
         task_id: int,
-        unseen_weights: torch.Tensor,
+        all_weights: torch.Tensor,
         unseen_indices: List[int]
     ):
-        """保存unseen分类器权重"""
-        save_path = self.save_dir / f'task{task_id}_unseen_weights.pt'
+        """保存分类器权重（seen + unseen）"""
+        save_path = self.save_dir / f'task{task_id}_classifier_weights.pt'
 
         torch.save({
-            'unseen_weights': unseen_weights.cpu(),
-            'unseen_indices': unseen_indices
+            'all_weights': all_weights.cpu(),
+            'unseen_indices': unseen_indices,
+            'num_classes': all_weights.shape[0]
         }, save_path)
 
-        self.logger.info(f"Unseen权重已保存: {save_path}")
+        self.logger.info(f"分类器权重已保存: {save_path}")
 
     def _save_task_checkpoint(self, task_id: int, task_name: str, task_stats: Dict):
         """保存任务检查点"""
