@@ -17,8 +17,10 @@ from pathlib import Path
 from datetime import datetime
 
 # 添加项目路径
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+code_root = Path(__file__).parent
+project_root = code_root.parent
+sys_path = [str(project_root), str(code_root)]
+sys.path.extend(sys_path)
 
 from core import (
     AUEmotionNetwork,
@@ -28,13 +30,13 @@ from data.dataloader import create_task_dataloaders_separated, IncrementalLabelM
 from training.two_stage_trainer import TwoStageTrainer
 
 
-def setup_logger(log_dir: str, exp_name: str) -> logging.Logger:
+def setup_logger(log_dir: str) -> logging.Logger:
     """设置日志记录器"""
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = log_dir / f"{exp_name}_{timestamp}.log"
+    log_file = log_dir / f"{timestamp}.log"
 
     # 创建logger
     logger = logging.getLogger('ZeroshotCL')
@@ -81,7 +83,7 @@ def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
     # 加载AU-EMO先验
     au_emo_prior = None
     if config['paths']['au_emo_prior']:
-        au_emo_prior = load_au_emo_prior(config['paths']['au_emo_prior'])
+        au_emo_prior, au_names, emotion_names = load_au_emo_prior(config['paths']['au_emo_prior'])
         logger.info(f"加载AU-EMO先验: {config['paths']['au_emo_prior']}")
         logger.info(f"  先验形状: {au_emo_prior.shape}")
 
@@ -90,8 +92,8 @@ def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
         text_input_dim=config['model']['text_input_dim'],
         audio_input_dim=config['model']['audio_input_dim'],
         video_input_dim=config['model']['video_input_dim'],
-        num_aus=config['model']['num_aus'],
-        num_emotions=config['model']['num_emotions'],
+        num_aus=len(au_names), #config['model']['num_aus'],
+        num_emotions=len(emotion_names), #config['model']['num_emotions'],
         encoder_hidden_dim=config['model']['encoder_hidden_dim'],
         encoder_output_dim=config['model']['encoder_output_dim'],
         hypergraph_hidden_dim=config['model']['hypergraph_hidden_dim'],
@@ -117,18 +119,16 @@ def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
 def main():
     """主函数"""
     # 1. 加载配置
-    config_path = "codes_v251119_2/config/train_config.yaml"
+    config_path = "config/train_config.yaml"
     config = load_config(config_path)
 
     # 2. 设置日志
-    exp_name = f"zeroshot_cl_{'_'.join(datetime.now().strftime('%Y%m%d_%H%M%S'))}"
-    logger = setup_logger(config['output']['log_dir'], exp_name)
+    logger = setup_logger(config['output']['log_dir'])
 
     logger.info("\n" + "#"*80)
     logger.info("# Zero-shot Continual Learning Training")
     logger.info("#"*80)
-
-    logger.info(f"\n实验名称: {exp_name}")
+    
     logger.info(f"配置文件: {config_path}")
     logger.info(f"设备: {config['device']}")
 

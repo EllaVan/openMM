@@ -2,7 +2,7 @@
 
 # ==================== 数据配置 ====================
 data:
-  task_config_path: "codes_v251119_2/config/tasks.json"
+  task_config_path: "config/tasks.json"
   batch_size: 32
   num_workers: 4
   train_ratio: 0.8
@@ -71,8 +71,8 @@ beta_prior:
 
 # ==================== 文件路径配置 ====================
 paths:
-  au_emo_prior: "codes_v251119_2/materials/au_emo_prior.json"
-  au_embedding: "codes_v251119_2/materials/au_embedding.pt"
+  au_emo_prior: "materials/au_emo_prior.json"
+  au_embedding: "materials/au_embedding.pt"
 
 # ==================== 输出配置 ====================
 output:

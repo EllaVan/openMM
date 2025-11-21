@@ -1,0 +1,15 @@
+2025-11-21 15:22:32 - ZeroshotCL - INFO - 日志文件: output/logs/20251121_152232.log
+2025-11-21 15:22:32 - ZeroshotCL - INFO - 
+################################################################################
+2025-11-21 15:22:32 - ZeroshotCL - INFO - # Zero-shot Continual Learning Training
+2025-11-21 15:22:32 - ZeroshotCL - INFO - ################################################################################
+2025-11-21 15:22:32 - ZeroshotCL - INFO - 配置文件: config/train_config.yaml
+2025-11-21 15:22:32 - ZeroshotCL - INFO - 设备: cuda:0
+2025-11-21 15:22:32 - ZeroshotCL - INFO - 使用设备: cuda:0
+2025-11-21 15:22:32 - ZeroshotCL - INFO -   GPU名称: NVIDIA GeForce RTX 3090
+2025-11-21 15:22:32 - ZeroshotCL - INFO -   GPU内存: 25.44 GB
+2025-11-21 15:24:39 - ZeroshotCL - INFO - 
+================================================================================
+2025-11-21 15:24:39 - ZeroshotCL - INFO - 创建模型...
+2025-11-21 15:24:39 - ZeroshotCL - INFO - ================================================================================
+2025-11-21 15:24:39 - ZeroshotCL - INFO - 加载AU-EMO先验: materials/au_emo_prior.json
