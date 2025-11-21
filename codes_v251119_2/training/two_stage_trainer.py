@@ -153,6 +153,23 @@ class TwoStageTrainer:
             )
             self.logger.info(f"  优化器已更新")
 
+        # 激活当前任务的所有情绪（seen + unseen）
+        self.logger.info(f"\n激活当前任务情绪...")
+
+        # 激活seen情绪
+        for emotion_name, global_id in task_info['seen_emotions'].items():
+            # 获取增量标签
+            incremental_label = task_info['mapping_info']['seen_mapping'][emotion_name]
+            self.model.au_emo_matrix.add_emotion(emotion_name, incremental_label)
+
+        # 激活unseen情绪
+        for emotion_name, global_id in task_info['unseen_emotions'].items():
+            # 获取增量标签
+            incremental_label = task_info['mapping_info']['unseen_mapping'][emotion_name]
+            self.model.au_emo_matrix.add_emotion(emotion_name, incremental_label)
+
+        self.logger.info(f"  当前激活情绪数: {self.model.au_emo_matrix.num_active_emotions}")
+
         task_stats = {
             'task_id': task_id,
             'task_name': task_name,
@@ -233,14 +250,17 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels = batch['label'].to(self.device)
+                labels_global = batch['label'].to(self.device)  # 全局增量标签
+
+                # 转换为局部激活索引
+                labels_local = self.model.au_emo_matrix.global_to_local_labels(labels_global)
 
                 # 前向传播
                 outputs = self.model(text, audio, video)
 
-                # 损失：AU路径 + 直接分类
-                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
-                loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
+                # 损失：AU路径 + 直接分类（使用局部标签）
+                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels_local)
+                loss_direct = F.cross_entropy(outputs['emo_direct'], labels_local)
 
                 loss = loss_au_path + 0.1 * loss_direct
 
@@ -266,8 +286,8 @@ class TwoStageTrainer:
                 num_batches += 1
 
                 preds = outputs['emo_from_au'].argmax(dim=1)
-                correct += (preds == labels).sum().item()
-                total += labels.size(0)
+                correct += (preds == labels_local).sum().item()
+                total += labels_local.size(0)
 
                 progress_bar.set_postfix({
                     'loss': loss.item(),
@@ -595,13 +615,16 @@ class TwoStageTrainer:
                 text = batch['text'].to(self.device)
                 audio = batch['audio'].to(self.device)
                 video = batch['video'].to(self.device)
-                labels = batch['label'].to(self.device)
+                labels_global = batch['label'].to(self.device)
+
+                # 转换为局部标签
+                labels_local = self.model.au_emo_matrix.global_to_local_labels(labels_global)
 
                 outputs = self.model(text, audio, video)
                 preds = outputs['emo_from_au'].argmax(dim=1)
 
-                correct += (preds == labels).sum().item()
-                total += labels.size(0)
+                correct += (preds == labels_local).sum().item()
+                total += labels_local.size(0)
 
         return correct / total if total > 0 else 0.0
 

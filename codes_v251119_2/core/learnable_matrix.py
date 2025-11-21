@@ -177,6 +177,26 @@ class LearnableAUEMOMatrix(nn.Module):
         """
         return [self.local_idx_to_emotion_id[i] for i in range(self.num_active_emotions)]
 
+    def global_to_local_labels(self, global_labels: torch.Tensor) -> torch.Tensor:
+        """
+        将全局增量标签转换为局部激活索引
+
+        Args:
+            global_labels: [batch_size] - 全局增量标签
+
+        Returns:
+            local_labels: [batch_size] - 局部激活索引
+        """
+        local_labels = torch.zeros_like(global_labels)
+        for i, global_label in enumerate(global_labels):
+            global_id = global_label.item()
+            if global_id in self.emotion_id_to_local_idx:
+                local_labels[i] = self.emotion_id_to_local_idx[global_id]
+            else:
+                # 如果标签对应的情绪未激活，设为-1（将被忽略）
+                local_labels[i] = -1
+        return local_labels
+
     def reset_active_emotions(self):
         """
         重置所有激活状态（用于测试或重新开始）
