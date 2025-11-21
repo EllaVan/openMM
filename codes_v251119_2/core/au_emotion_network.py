@@ -196,6 +196,45 @@ class AUEmotionNetwork(nn.Module):
             device=device
         )
 
+    def expand_classifiers(self, new_num_emotions: int):
+        """
+        动态扩展分类器以适应新的情绪类别数
+
+        用于持续学习中，当新任务引入新类别时调用
+
+        Args:
+            new_num_emotions: 新的总类别数
+        """
+        if new_num_emotions <= self.num_emotions:
+            return  # 无需扩展
+
+        old_num = self.num_emotions
+        self.num_emotions = new_num_emotions
+
+        # 1. 扩展DirectEmotionClassifier的最后一层
+        old_weight = self.emotion_classifier.classifier[-1].weight.data
+        old_bias = self.emotion_classifier.classifier[-1].bias.data
+
+        # 创建新的分类层
+        hidden_dim = old_weight.shape[1]
+        new_classifier_layer = nn.Linear(hidden_dim, new_num_emotions).to(self.device_str)
+
+        # 复制旧权重
+        with torch.no_grad():
+            new_classifier_layer.weight.data[:old_num] = old_weight
+            new_classifier_layer.bias.data[:old_num] = old_bias
+            # 新类别的权重用小随机值初始化
+            nn.init.xavier_uniform_(new_classifier_layer.weight.data[old_num:])
+            new_classifier_layer.bias.data[old_num:] = 0
+
+        # 替换最后一层
+        self.emotion_classifier.classifier[-1] = new_classifier_layer
+
+        # 2. 扩展AU-EMO矩阵
+        self.au_emo_matrix.expand_emotions(new_num_emotions)
+
+        print(f"分类器已扩展: {old_num} -> {new_num_emotions} 个类别")
+
     def forward(
         self,
         text: torch.Tensor,

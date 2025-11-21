@@ -187,6 +187,55 @@ class LearnableAUEMOMatrix(nn.Module):
         self.num_active_emotions = 0
         print("  已重置所有激活的情绪")
 
+    def expand_emotions(self, new_num_emotions: int):
+        """
+        扩展矩阵以适应新的情绪类别数（用于持续学习）
+
+        Args:
+            new_num_emotions: 新的总情绪类别数
+        """
+        if new_num_emotions <= self.num_emotions:
+            return  # 无需扩展
+
+        old_num = self.num_emotions
+        device = self.prior_logits.device
+
+        # 扩展先验
+        new_prior_logits = torch.zeros(new_num_emotions, self.num_aus, device=device)
+        new_prior_logits[:old_num] = self.prior_logits
+        # 新情绪用小随机值初始化先验
+        new_prior_logits[old_num:] = torch.randn(new_num_emotions - old_num, self.num_aus, device=device) * 0.01
+
+        new_prior_p = torch.zeros(new_num_emotions, self.num_aus, device=device)
+        new_prior_p[:old_num] = self.prior_p_au_given_emo
+        new_prior_p[old_num:] = 0.1  # 新情绪用均匀先验
+
+        # 扩展可学习参数
+        old_logits = self.matrix_logits.data
+        new_logits = torch.zeros(new_num_emotions, self.num_aus, device=device)
+        new_logits[:old_num] = old_logits
+        new_logits[old_num:] = new_prior_logits[old_num:]
+
+        # 扩展情绪先验
+        new_emo_prior = torch.ones(new_num_emotions, device=device) / new_num_emotions
+
+        # 扩展active_mask
+        new_active_mask = torch.zeros(new_num_emotions, dtype=torch.bool, device=device)
+        new_active_mask[:old_num] = self.active_mask
+
+        # 更新所有buffer和参数
+        self.register_buffer('prior_logits', new_prior_logits)
+        self.register_buffer('prior_p_au_given_emo', new_prior_p)
+        self.register_buffer('emo_prior', new_emo_prior)
+        self.register_buffer('active_mask', new_active_mask)
+
+        # 更新可学习参数
+        self.matrix_logits = nn.Parameter(new_logits)
+
+        self.num_emotions = new_num_emotions
+
+        print(f"AU-EMO矩阵已扩展: {old_num} -> {new_num_emotions} 个情绪")
+
     def forward(self, au_probs: torch.Tensor, emo_prior: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         从AU概率预测情绪概率
