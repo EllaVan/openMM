@@ -47,6 +47,7 @@ class UtteranceFeatureExtractor:
         self._init_text_extractor()
         self._init_audio_extractor()
         self._init_video_extractor()
+        self._init_openface()
 
         print(f"{'='*60}\n")
 
@@ -125,6 +126,35 @@ class UtteranceFeatureExtractor:
         self.video_processor = AutoImageProcessor.from_pretrained(model_source)
         self.video_model = AutoModel.from_pretrained(model_source).to(self.device)
         self.video_model.eval()
+
+    def _init_openface(self):
+        """初始化 OpenFace AU 特征提取器配置"""
+        openface_config = self.config['models']['openface']
+
+        self.openface_executable = openface_config.get('executable_path', '')
+        self.openface_output_dir = openface_config.get('output_dir', './temp_openface_output')
+
+        # 从 au_emo_prior.json 加载 AU 名称列表
+        au_prior_path = openface_config.get('au_prior_path', '../materials/au_emo_prior.json')
+        au_prior_full_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            au_prior_path
+        )
+
+        if os.path.exists(au_prior_full_path):
+            with open(au_prior_full_path, 'r', encoding='utf-8') as f:
+                au_prior_data = json.load(f)
+                self.au_names = au_prior_data.get('au_names', [])
+                print(f"✓ 加载 OpenFace 配置")
+                print(f"  可执行文件: {self.openface_executable}")
+                print(f"  AU 数量: {len(self.au_names)}")
+                print(f"  输出维度: {openface_config.get('output_dim', 20)}")
+        else:
+            print(f"⚠ AU prior 文件不存在: {au_prior_full_path}")
+            self.au_names = []
+
+        # 创建临时输出目录
+        os.makedirs(self.openface_output_dir, exist_ok=True)
 
     def _cleanup_memory(self):
         """清理GPU内存"""
@@ -255,6 +285,96 @@ class UtteranceFeatureExtractor:
 
         return features
 
+    def extract_au_features(self, video_path: str) -> torch.Tensor:
+        """
+        使用 OpenFace 提取 AU 概率特征 - Utterance级别
+
+        Args:
+            video_path: 视频文件路径
+
+        Returns:
+            au_features: [20] - 20个AU的概率（基于intensity的mean pooling归一化）
+        """
+        import subprocess
+        import pandas as pd
+        import tempfile
+        import shutil
+
+        # 检查 OpenFace 可执行文件是否存在
+        if not os.path.exists(self.openface_executable):
+            print(f"⚠ OpenFace 可执行文件不存在: {self.openface_executable}")
+            return torch.zeros(len(self.au_names))
+
+        # 为当前视频创建临时输出目录
+        temp_dir = tempfile.mkdtemp(dir=self.openface_output_dir)
+
+        try:
+            # 调用 OpenFace FeatureExtraction
+            cmd = [
+                self.openface_executable,
+                '-f', video_path,
+                '-out_dir', temp_dir,
+                '-aus'  # 只提取 AU 特征
+            ]
+
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60  # 60秒超时
+            )
+
+            if result.returncode != 0:
+                print(f"⚠ OpenFace 处理失败: {result.stderr.decode()}")
+                return torch.zeros(len(self.au_names))
+
+            # 查找输出的 CSV 文件
+            csv_files = list(Path(temp_dir).glob('*.csv'))
+            if len(csv_files) == 0:
+                print(f"⚠ OpenFace 未生成 CSV 文件")
+                return torch.zeros(len(self.au_names))
+
+            csv_file = csv_files[0]
+
+            # 读取 CSV 文件
+            df = pd.read_csv(csv_file)
+
+            # 提取 AU intensity 列并计算平均值
+            au_probabilities = []
+
+            for au_name in self.au_names:
+                # au_name 格式: "AU1_raise_inner_brow"
+                # OpenFace CSV 列名格式: "AU01_r" (intensity)
+                au_number = au_name.split('_')[0].replace('AU', '')
+                au_col_name = f'AU{au_number.zfill(2)}_r'
+
+                if au_col_name in df.columns:
+                    # 计算该 AU 的时间平均强度
+                    au_intensity = df[au_col_name].mean()
+
+                    # OpenFace intensity 范围通常是 [0, 5]
+                    # 归一化到 [0, 1] 作为概率
+                    au_prob = np.clip(au_intensity / 5.0, 0.0, 1.0)
+                    au_probabilities.append(au_prob)
+                else:
+                    # 如果该 AU 列不存在，使用 0
+                    au_probabilities.append(0.0)
+
+            au_features = torch.tensor(au_probabilities, dtype=torch.float32)
+
+        except subprocess.TimeoutExpired:
+            print(f"⚠ OpenFace 处理超时")
+            au_features = torch.zeros(len(self.au_names))
+        except Exception as e:
+            print(f"⚠ AU 特征提取失败: {str(e)}")
+            au_features = torch.zeros(len(self.au_names))
+        finally:
+            # 清理临时目录
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+        return au_features
+
     def extract_multimodal_features(
         self,
         text: str,
@@ -262,7 +382,7 @@ class UtteranceFeatureExtractor:
         video_path: str
     ) -> Dict:
         """
-        提取多模态特征（全部 768 维）- Utterance级别
+        提取多模态特征（包括AU特征）- Utterance级别
 
         Args:
             text: 文本内容
@@ -270,7 +390,11 @@ class UtteranceFeatureExtractor:
             video_path: 视频文件路径
 
         Returns:
-            features: 包含特征的字典，每个模态都是 [768] 维向量
+            features: 包含特征的字典
+                - text_features: [768]
+                - audio_features: [768]
+                - video_features: [768]
+                - au_features: [20] - 20个AU的概率
         """
         # 1. 提取文本特征
         text_features = self.extract_text_features(text)
@@ -281,10 +405,14 @@ class UtteranceFeatureExtractor:
         # 3. 提取视频特征
         video_features = self.extract_video_features(video_path)
 
+        # 4. 提取 AU 特征
+        au_features = self.extract_au_features(video_path)
+
         return {
             'text_features': text_features,        # [768]
             'audio_features': audio_features,      # [768]
             'video_features': video_features,      # [768]
+            'au_features': au_features,            # [20]
         }
 
 

@@ -122,6 +122,7 @@ def extract_mosei(config):
                 'text_features': features['text_features'],
                 'audio_features': features['audio_features'],
                 'video_features': features['video_features'],
+                'au_features': features['au_features'],
                 'label': label,
                 'emotion': emotion,
                 'sample_id': sample_id
@@ -225,6 +226,7 @@ def extract_meld(config):
                     'text_features': features['text_features'],
                     'audio_features': features['audio_features'],
                     'video_features': features['video_features'],
+                    'au_features': features['au_features'],
                     'label': label,
                     'emotion': emotion,
                     'sample_id': sample_id
