@@ -1,0 +1,10 @@
+Input:/media/sda/wf/openMM/Datasets/MOSEI/video/F59hwsm4Ld0/2.mp4
+Input full path:/media/sda/wf/openMM/Datasets/MOSEI/video/F59hwsm4Ld0/2.mp4
+Camera parameters:875,875,640,360
+Output csv:2.csv
+Gaze: 0
+AUs: 1
+Landmarks 2D: 0
+Landmarks 3D: 0
+Pose: 0
+Shape parameters: 0

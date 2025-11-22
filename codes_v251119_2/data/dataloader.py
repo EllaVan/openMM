@@ -63,9 +63,7 @@ class IncrementalLabelMapper:
         Returns:
             mapping_info: 映射信息字典
         """
-        print(f"\n{'='*70}")
         print(f"Task {task_id}: 标签映射")
-        print(f"{'='*70}")
 
         seen_mapping = {}
         unseen_mapping = {}
@@ -563,9 +561,7 @@ def create_task_dataloaders_separated(
         task_info: 任务信息字典
     """
     # 1. 加载任务配置
-    print(f"\n{'='*80}")
     print(f"加载任务配置: {task_config_path}")
-    print(f"{'='*80}")
 
     with open(task_config_path, 'r') as f:
         config = json.load(f)
@@ -597,9 +593,7 @@ def create_task_dataloaders_separated(
     )
 
     # 3. 分别加载seen和unseen数据
-    print(f"\n{'='*70}")
     print(f"加载数据文件（seen/unseen分离）...")
-    print(f"{'='*70}")
 
     seen_data = []
     unseen_data = []
@@ -756,7 +750,6 @@ def create_task_dataloaders_separated(
         print(f"  Unseen训练批次数: {len(train_loaders['unseen'])}")
         print(f"  Unseen测试批次数: {len(test_loaders['unseen'])}")
     print(f"  Batch大小: {batch_size}")
-    print(f"{'='*80}\n")
 
     # 7. 任务信息
     task_info = {

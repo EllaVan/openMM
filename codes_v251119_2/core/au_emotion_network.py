@@ -28,7 +28,7 @@ class AUPredictor(nn.Module):
     """
     AU预测器
 
-    从融合特征预测23个Action Units的激活概率
+    从融合特征预测20个Action Units的激活概率
     使用多标签分类（sigmoid），因为多个AU可以同时激活
     """
 
@@ -117,8 +117,8 @@ class AUEmotionNetwork(nn.Module):
         audio_input_dim: int = 768,
         video_input_dim: int = 768,
         # AU和情绪
-        num_aus: int = 23,
-        num_emotions: int = 6,
+        num_aus: int = 20,
+        num_emotions: int = 7,
         # 网络架构
         encoder_hidden_dim: int = 256,
         encoder_output_dim: int = 256,

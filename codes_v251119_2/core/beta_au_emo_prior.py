@@ -32,7 +32,7 @@ class BetaAUEMOPrior(nn.Module):
     def __init__(
         self,
         num_emotions: int = 7,
-        num_aus: int = 23,
+        num_aus: int = 20,
         prior_json_path: Optional[str] = None,
         pseudo_count: float = 2.0,
         device: str = 'cuda'
@@ -60,7 +60,6 @@ class BetaAUEMOPrior(nn.Module):
             prior_matrix = np.ones((num_emotions, num_aus)) * 0.5
 
         # 初始化Beta分布参数
-        # α = prior * pseudo_count, β = (1-prior) * pseudo_count
         alpha_init = prior_matrix * pseudo_count
         beta_init = (1 - prior_matrix) * pseudo_count
 

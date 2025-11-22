@@ -39,7 +39,7 @@ def setup_logger(log_dir: str) -> logging.Logger:
     log_file = log_dir / f"{timestamp}.log"
 
     # 创建logger
-    logger = logging.getLogger('ZeroshotCL')
+    logger = logging.getLogger() #logger = logging.getLogger('ZeroshotCL')
     logger.setLevel(logging.INFO)
 
     # 文件处理器
@@ -76,16 +76,14 @@ def load_config(config_path: str) -> dict:
 
 def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
     """创建模型"""
-    logger.info("\n" + "="*80)
     logger.info("创建模型...")
-    logger.info("="*80)
 
     # 加载AU-EMO先验
     au_emo_prior = None
     if config['paths']['au_emo_prior']:
         au_emo_prior, au_names, emotion_names = load_au_emo_prior(config['paths']['au_emo_prior'])
         logger.info(f"加载AU-EMO先验: {config['paths']['au_emo_prior']}")
-        logger.info(f"  先验形状: {au_emo_prior.shape}")
+        logger.info(f"先验形状: {au_emo_prior.shape}")
 
     # 创建模型
     model = AUEmotionNetwork(
@@ -110,8 +108,8 @@ def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     logger.info(f"\n模型创建完成:")
-    logger.info(f"  总参数量: {total_params:,}")
-    logger.info(f"  可训练参数: {trainable_params:,}")
+    logger.info(f"总参数量: {total_params:,}")
+    logger.info(f"可训练参数: {trainable_params:,}")
 
     return model
 
@@ -144,9 +142,7 @@ def main():
     model = create_model(config, logger)
 
     # 5. 创建训练器
-    logger.info("\n" + "="*80)
     logger.info("创建训练器...")
-    logger.info("="*80)
 
     # 合并配置（为了兼容trainer）
     trainer_config = {
@@ -172,9 +168,7 @@ def main():
     logger.info("训练器创建完成")
 
     # 6. 加载任务数据
-    logger.info("\n" + "="*80)
     logger.info("加载任务数据...")
-    logger.info("="*80)
 
     task_config_path = config['data']['task_config_path']
     label_mapper = IncrementalLabelMapper()
@@ -189,9 +183,7 @@ def main():
 
     # 7. 逐任务训练
     for task_id in range(num_tasks):
-        logger.info("\n" + "#"*80)
         logger.info(f"# 任务 {task_id + 1}/{num_tasks}")
-        logger.info("#"*80)
 
         # 加载任务数据
         train_loaders, test_loaders, label_mapper, task_info = create_task_dataloaders_separated(
@@ -218,14 +210,10 @@ def main():
         )
 
         # 打印任务总结
-        logger.info("\n" + "-"*80)
         logger.info(f"任务 {task_id} 训练完成")
-        logger.info("-"*80)
 
     # 8. 训练完成
-    logger.info("\n" + "#"*80)
     logger.info("# 全部训练完成！")
-    logger.info("#"*80)
 
     logger.info(f"\n总类别数: {label_mapper.get_num_classes_so_far()}")
     logger.info(f"标签映射: {label_mapper.original_to_incremental}")

@@ -132,11 +132,9 @@ class TwoStageTrainer:
         Returns:
             task_stats: 任务统计
         """
-        self.logger.info(f"\n{'='*80}")
         self.logger.info(f"开始训练 Task {task_id}: {task_name}")
         self.logger.info(f"  Seen情绪: {task_info['seen_emotions']}")
         self.logger.info(f"  Unseen情绪: {task_info['unseen_emotions']}")
-        self.logger.info(f"{'='*80}")
 
         # 扩展分类器以适应新的类别数
         num_classes_so_far = task_info['num_classes_so_far']
@@ -178,9 +176,7 @@ class TwoStageTrainer:
         }
 
         # 阶段1: Seen训练
-        self.logger.info(f"\n{'#'*80}")
         self.logger.info(f"# 阶段1: Seen训练 ({num_epochs_stage1} epochs)")
-        self.logger.info(f"{'#'*80}")
 
         stage1_stats = self._stage1_seen_training(
             train_loaders['seen'],
@@ -195,9 +191,7 @@ class TwoStageTrainer:
 
         # 阶段2: Unseen Zero-shot (EM迭代)
         if 'unseen' in train_loaders:
-            self.logger.info(f"\n{'#'*80}")
             self.logger.info(f"# 阶段2: Unseen Zero-shot (EM迭代)")
-            self.logger.info(f"{'#'*80}")
 
             stage2_stats = self._stage2_unseen_zeroshot(
                 train_loaders['unseen'],
@@ -260,10 +254,10 @@ class TwoStageTrainer:
                 loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
                 loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
 
-                loss = loss_au_path + 0.1 * loss_direct
+                loss = loss_au_path + loss_direct # 0.1*loss_direct
 
                 # EWC惩罚
-                if self.ewc is not None and self.ewc.is_consolidated:
+                if task_id!= 0 and self.ewc is not None and self.ewc.is_consolidated:
                     loss += self.ewc.penalty()
 
                 # 反向传播
@@ -284,12 +278,12 @@ class TwoStageTrainer:
                 num_batches += 1
 
                 preds = outputs['emo_from_au'].argmax(dim=1)
-                correct += (preds == labels).sum().item()
+                correc += (preds == labels).sum().item()
                 total += labels.size(0)
 
                 progress_bar.set_postfix({
                     'loss': loss.item(),
-                    'acc': correct / total
+                    'acc': correct / total,
                 })
 
             # 评估
