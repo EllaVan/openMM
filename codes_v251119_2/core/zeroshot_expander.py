@@ -6,8 +6,9 @@ import torch.nn.functional as F
 
 class GraphConv(nn.Module):
 
-    def __init__(self, in_channels, out_channels, dropout=False, relu=True):
+    def __init__(self, in_channels, out_channels, dropout=False, relu=True, device='cuda:0'):
         super().__init__()
+        self.device = device
         self.outdimension = out_channels
 
         if dropout:
@@ -29,7 +30,7 @@ class GraphConv(nn.Module):
             inputs = self.dropout(inputs)
 
         outputs = torch.mm(adj, torch.mm(inputs, self.w)) + self.b
-        m = nn.BatchNorm1d(outputs.shape[1], track_running_stats=False).cuda()
+        m = nn.BatchNorm1d(outputs.shape[1], track_running_stats=False).to(outputs.device)
         outputs = m(outputs)
 
         if self.relu is not None:
@@ -38,8 +39,9 @@ class GraphConv(nn.Module):
 
 class GraphConv_vm(nn.Module):
 
-    def __init__(self, in_channels, out_channels, dropout=False, relu=True):
+    def __init__(self, in_channels, out_channels, dropout=False, relu=True, device='cuda:0'):
         super().__init__()
+        self.device = device
         self.outdimension = out_channels
 
         if dropout:
@@ -72,12 +74,13 @@ class GraphConv_vm(nn.Module):
 
 class zeroshotExpander(nn.Module):
 
-    def __init__(self, n, edges, in_channels, out_channels, hidden_layers):
+    def __init__(self, n, edges, in_channels, out_channels, hidden_layers, device):
         super().__init__()
+        self.device = device
 
-        edges = np.array(edges)
-        adj = torch.from_numpy(edges).float()
-        self.adj = adj.cuda()
+        # edges = np.array(edges)
+        # adj = torch.from_numpy(edges).float()
+        self.adj = edges#.to(self.device)
 
         hl = hidden_layers.split(',')
         if hl[-1] == 'd':
@@ -118,7 +121,7 @@ class zeroshotExpander(nn.Module):
         for conv in self.layers:
             x = conv(x, self.adj)
         if if_att is True:
-            alpha_att = torch.zeros(x.shape[0], x.shape[0]).cuda()
+            alpha_att = torch.zeros(x.shape[0], x.shape[0]).to(x.device)
             for i in range(x.shape[0]):
                 for j in range(x.shape[0]):
                     f_i = x[i].reshape(-1, x.shape[1])

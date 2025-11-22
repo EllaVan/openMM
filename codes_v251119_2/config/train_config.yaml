@@ -26,7 +26,7 @@ model:
   hypergraph_hidden_dim: 256
   num_hyperedges: 64
   num_conv_layers: 2
-  dropout: 0.1
+  dropout: 0.5 #0.1
 
   # AU-EMO先验
   prior_strength: 0.1
@@ -38,7 +38,7 @@ training:
   gradient_clip: 1.0
 
   # 阶段1: Seen训练
-  stage1_epochs: 20
+  stage1_epochs: 10 #20
   warmup_epochs: 3  # 仅Task 0
 
   # 阶段2: Unseen Zero-shot

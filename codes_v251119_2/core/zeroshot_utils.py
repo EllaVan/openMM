@@ -67,7 +67,7 @@ def get_transition_matrix(p_au_given_emo: np.ndarray) -> np.ndarray:
     self_connection = np.identity(num_emotions)
     trans_matrix = trans_matrix + self_connection
 
-    return trans_matrix
+    return torch.from_numpy(trans_matrix).float()
 
 
 def get_class_embedding(

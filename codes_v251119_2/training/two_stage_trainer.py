@@ -74,7 +74,7 @@ class TwoStageTrainer:
             num_emotions=config['model']['num_emotions'],
             num_aus=config['model']['num_aus'],
             prior_json_path=prior_path,
-            pseudo_count=config.get('pseudo_count', 2.0),
+            pseudo_count=config.get('pseudo_count', 1.0),
             device=device
         ).to(device)
 
@@ -264,7 +264,8 @@ class TwoStageTrainer:
             self.model.train()
 
             total_loss = 0
-            correct = 0
+            correct_prob = 0
+            correct_direct = 0
             total = 0
             num_batches = 0
 
@@ -337,7 +338,7 @@ class TwoStageTrainer:
 
             self.logger.info(f"Stage1 Epoch {epoch+1}: loss={avg_loss:.4f}, "
                            f"train_acc_prob={train_acc_prob:.4f}, train_acc_direct={train_acc_direct:.4f},"
-                           f"test_acc={test_acc_prob:.4f}, test_acc={test_acc_direct:.4f},")
+                           f"test_acc_prob={test_acc_prob:.4f}, test_acc_direct={test_acc_direct:.4f},")
 
         return epoch_stats
 
@@ -450,7 +451,7 @@ class TwoStageTrainer:
         p_au_emo = p_au_emo_all[:num_emotions]  # [num_classes_so_far, num_aus]
 
         # 构建转换矩阵
-        trans_matrix = zeroshot_utils.get_transition_matrix(p_au_emo)
+        trans_matrix = zeroshot_utils.get_transition_matrix(p_au_emo).to(self.device)
 
         # 构建类语义特征
         class_embeddings = zeroshot_utils.get_class_embedding(
@@ -469,7 +470,8 @@ class TwoStageTrainer:
             edges=trans_matrix,
             in_channels=embedding_dim,
             out_channels=weight_dim,
-            hidden_layers=hidden_layers
+            hidden_layers=hidden_layers,
+            device=self.device
         ).to(self.device)
 
         self.current_num_emotions = num_emotions
@@ -645,7 +647,8 @@ class TwoStageTrainer:
         """评估seen样本的准确率"""
         self.model.eval()
 
-        correct = 0
+        correct_prob = 0
+        correct_direct = 0
         total = 0
 
         with torch.no_grad():
@@ -685,6 +688,7 @@ class TwoStageTrainer:
         """
         self.model.eval()
 
+        correct_prob = 0
         correct = 0
         total = 0
 

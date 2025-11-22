@@ -647,9 +647,7 @@ def create_task_dataloaders_separated(
             print(f"    加载了 {len(emotion_data)} 个样本")
 
     # 4. 分别划分训练集和测试集
-    print(f"\n{'='*70}")
     print(f"划分训练集和测试集 (比例: {train_ratio:.2f})")
-    print(f"{'='*70}")
 
     # Seen数据划分
     np.random.shuffle(seen_data)
