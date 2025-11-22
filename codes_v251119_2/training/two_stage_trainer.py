@@ -62,11 +62,39 @@ class TwoStageTrainer:
         self.logger = logger
         self.device = device
 
-        # 优化器（阶段1用）
-        self.optimizer = optim.Adam(
-            self.model.parameters(),
+        # 优化器（分离监督）
+        # optimizer_direct: 监督多模态编码器 + 直接分类器
+        # optimizer_au: 监督AU预测分支 + AU-EMO矩阵
+
+        # 收集多模态编码器参数（backbone）
+        backbone_params = []
+        for name, param in model.named_parameters():
+            if any(x in name for x in ['text_encoder', 'audio_encoder', 'video_encoder', 'hypergraph']):
+                backbone_params.append(param)
+
+        # 收集直接分类器参数
+        direct_classifier_params = list(model.emotion_classifier.parameters())
+
+        # 收集AU预测分支参数
+        au_predictor_params = list(model.au_predictor.parameters())
+
+        # 收集AU-EMO矩阵参数
+        au_emo_matrix_params = list(model.au_emo_matrix.parameters())
+
+        # 创建两个优化器
+        self.optimizer_direct = optim.Adam(
+            backbone_params + direct_classifier_params,
             lr=config['training']['learning_rate']
         )
+
+        self.optimizer_au = optim.Adam(
+            au_predictor_params + au_emo_matrix_params,
+            lr=config['training']['learning_rate']
+        )
+
+        self.logger.info(f"创建分离优化器:")
+        self.logger.info(f"  optimizer_direct: 多模态编码器 + 直接分类器")
+        self.logger.info(f"  optimizer_au: AU预测分支 + AU-EMO矩阵")
 
         # Beta分布先验管理器
         prior_path = config.get('au_emo_prior_path', 'materials/au_emo_prior.json')
@@ -147,12 +175,35 @@ class TwoStageTrainer:
 
         if num_classes_so_far > self.model.num_emotions:
             self.model.expand_classifiers(num_classes_so_far)
-            # 更新优化器以包含新参数
-            self.optimizer = optim.Adam(
-                self.model.parameters(),
+
+            # 重新创建优化器以包含新扩展的参数
+            # 收集多模态编码器参数（backbone）
+            backbone_params = []
+            for name, param in self.model.named_parameters():
+                if any(x in name for x in ['text_encoder', 'audio_encoder', 'video_encoder', 'hypergraph']):
+                    backbone_params.append(param)
+
+            # 收集直接分类器参数（包括新扩展的）
+            direct_classifier_params = list(self.model.emotion_classifier.parameters())
+
+            # 收集AU预测分支参数
+            au_predictor_params = list(self.model.au_predictor.parameters())
+
+            # 收集AU-EMO矩阵参数（包括新扩展的）
+            au_emo_matrix_params = list(self.model.au_emo_matrix.parameters())
+
+            # 重新创建优化器
+            self.optimizer_direct = optim.Adam(
+                backbone_params + direct_classifier_params,
                 lr=self.config['training']['learning_rate']
             )
-            self.logger.info(f"  优化器已更新")
+
+            self.optimizer_au = optim.Adam(
+                au_predictor_params + au_emo_matrix_params,
+                lr=self.config['training']['learning_rate']
+            )
+
+            self.logger.info(f"  优化器已更新（包含新扩展的参数）")
 
         # 激活当前任务的所有情绪（seen + unseen）
         self.logger.info(f"\n激活当前任务情绪...")
@@ -280,32 +331,48 @@ class TwoStageTrainer:
                 # 前向传播
                 outputs = self.model(text, audio, video)
 
-                # 损失：AU路径 + 直接分类
-                # 输出是[batch, num_emotions]，非激活情绪已mask为-inf
-                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                # ========== 分离监督 ==========
+                # 1. Direct路径：监督多模态编码器 + 直接分类器
                 loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
 
-                loss = loss_au_path + loss_direct # 0.1*loss_direct
+                # EWC惩罚（只加到direct路径，因为backbone在这里更新）
+                ewc_loss = 0.0
+                if task_id != 0 and self.ewc is not None and self.ewc.is_consolidated:
+                    ewc_loss = self.ewc.penalty()
+                    loss_direct = loss_direct + ewc_loss
 
-                # EWC惩罚
-                if task_id!= 0 and self.ewc is not None and self.ewc.is_consolidated:
-                    loss += self.ewc.penalty()
+                self.optimizer_direct.zero_grad()
+                loss_direct.backward(retain_graph=True)  # 保留计算图，AU路径还要用
 
-                # 反向传播
-                self.optimizer.zero_grad()
-                loss.backward()
-
-                # 梯度裁剪
+                # 梯度裁剪（direct）
                 if 'gradient_clip' in self.config['training']:
                     torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(),
+                        [p for group in self.optimizer_direct.param_groups for p in group['params']],
                         self.config['training']['gradient_clip']
                     )
 
-                self.optimizer.step()
+                self.optimizer_direct.step()
+
+                # 2. AU路径：监督AU预测分支 + AU-EMO矩阵
+                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+
+                self.optimizer_au.zero_grad()
+                loss_au_path.backward()
+
+                # 梯度裁剪（AU）
+                if 'gradient_clip' in self.config['training']:
+                    torch.nn.utils.clip_grad_norm_(
+                        [p for group in self.optimizer_au.param_groups for p in group['params']],
+                        self.config['training']['gradient_clip']
+                    )
+
+                self.optimizer_au.step()
+
+                # 总损失（仅用于记录）
+                total_batch_loss = loss_direct.item() + loss_au_path.item()
 
                 # 统计
-                total_loss += loss.item()
+                total_loss += total_batch_loss
                 num_batches += 1
 
                 preds = outputs['emo_from_au'].argmax(dim=1)
@@ -313,7 +380,7 @@ class TwoStageTrainer:
                 total += labels.size(0)
 
                 progress_bar.set_postfix({
-                    'loss': loss.item(),
+                    'loss': total_batch_loss,
                     'acc': correct / total,
                 })
 
@@ -952,7 +1019,8 @@ class TwoStageTrainer:
             'task_id': task_id,
             'task_name': task_name,
             'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
+            'optimizer_direct_state_dict': self.optimizer_direct.state_dict(),
+            'optimizer_au_state_dict': self.optimizer_au.state_dict(),
             'task_stats': task_stats
         }
 
