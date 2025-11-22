@@ -177,6 +177,10 @@ class TwoStageTrainer:
 
         # 阶段1: Seen训练
         self.logger.info(f"# 阶段1: Seen训练 ({num_epochs_stage1} epochs)")
+        if task_id == 0:
+            self.logger.info(f"  Task 0 (第一个任务): 不使用EWC惩罚")
+        elif self.ewc is not None and self.ewc.is_consolidated:
+            self.logger.info(f"  使用EWC防止灾难性遗忘 (lambda={self.ewc.ewc_lambda})")
 
         stage1_stats = self._stage1_seen_training(
             train_loaders['seen'],
@@ -185,6 +189,15 @@ class TwoStageTrainer:
             task_id
         )
         task_stats['stage1_epochs'] = stage1_stats
+
+        # 阶段1完成后：更新seen情绪的P(AU|EMO)
+        seen_indices = list(task_info['mapping_info']['seen_mapping'].values())
+        self.logger.info(f"\n更新Seen情绪的P(AU|EMO)...")
+        seen_update_stats = self._update_seen_au_emo_prior(
+            train_loaders['seen'],
+            seen_indices
+        )
+        task_stats['seen_prior_update'] = seen_update_stats
 
         # 提取seen分类器权重
         seen_classifier_weights = self._extract_seen_classifier_weights(task_info)
@@ -207,7 +220,10 @@ class TwoStageTrainer:
 
         # EWC合并
         if self.ewc is not None:
-            self.logger.info(f"\n[EWC] 合并Fisher信息...")
+            if task_id == 0:
+                self.logger.info(f"\n[EWC] Task 0完成: 计算Fisher信息矩阵（为后续任务准备）...")
+            else:
+                self.logger.info(f"\n[EWC] Task {task_id}完成: 更新Fisher信息矩阵...")
             self.ewc.consolidate(train_loaders['seen'])
 
         # 保存任务检查点
@@ -278,7 +294,7 @@ class TwoStageTrainer:
                 num_batches += 1
 
                 preds = outputs['emo_from_au'].argmax(dim=1)
-                correc += (preds == labels).sum().item()
+                correct += (preds == labels).sum().item()
                 total += labels.size(0)
 
                 progress_bar.set_postfix({
@@ -688,6 +704,70 @@ class TwoStageTrainer:
         }, save_path)
 
         self.logger.info(f"分类器权重已保存: {save_path}")
+
+    def _update_seen_au_emo_prior(
+        self,
+        train_loader: DataLoader,
+        seen_indices: List[int]
+    ) -> Dict:
+        """
+        阶段1完成后，更新seen情绪的P(AU|EMO)
+
+        用seen样本的AU预测概率，通过Beta分布更新seen情绪的P(AU|EMO)
+
+        Args:
+            train_loader: Seen训练数据
+            seen_indices: Seen情绪的全局索引列表
+
+        Returns:
+            stats: {'num_observations': int}
+        """
+        self.logger.info(f"\n[更新Seen P(AU|EMO)] 用seen样本更新Beta先验...")
+
+        self.model.eval()
+
+        # 重置seen情绪的观测计数
+        self.beta_prior.reset_observations(seen_indices)
+
+        total_samples = 0
+
+        with torch.no_grad():
+            for batch in tqdm(train_loader, desc='更新Seen P(AU|EMO)', ncols=80):
+                # 获取数据
+                text = batch['text'].to(self.device)
+                audio = batch['audio'].to(self.device)
+                video = batch['video'].to(self.device)
+                labels = batch['label'].to(self.device)  # 真实标签（全局索引）
+
+                batch_size = text.size(0)
+
+                # 前向传播获取AU概率
+                outputs = self.model(text, audio, video)
+                au_probs = outputs['au_probs']  # [batch_size, num_aus]
+
+                # 用真实标签累积观测统计量
+                self.beta_prior.accumulate_observations(
+                    emotion_indices=labels,
+                    au_probs=au_probs
+                )
+
+                total_samples += batch_size
+
+        # 批量更新Beta参数（只更新seen情绪）
+        self.beta_prior.update_beta_parameters(seen_indices)
+
+        self.logger.info(f"Seen P(AU|EMO)更新完成: 使用 {total_samples} 个样本")
+
+        # 打印更新后的统计信息
+        for emo_idx in seen_indices:
+            stats = self.beta_prior.get_statistics(emotion_idx=emo_idx)
+            self.logger.info(f"  情绪 {emo_idx} ({stats['emotion_name']}): "
+                           f"观测数={stats['observation_count']}, "
+                           f"P(AU|EMO)均值={stats['p_au_emo'].mean():.4f}")
+
+        return {
+            'num_observations': total_samples
+        }
 
     def _save_task_checkpoint(self, task_id: int, task_name: str, task_stats: Dict):
         """保存任务检查点"""
