@@ -398,7 +398,7 @@ class TwoStageTrainer:
                 total += labels.size(0)
 
                 progress_bar.set_postfix({
-                    'loss': total_batch_loss.item(),
+                    'loss': total_batch_loss,
                     'acc_prob': correct_prob / total,
                     'acc_direct': correct_direct / total,
                 })
@@ -464,7 +464,7 @@ class TwoStageTrainer:
             self.logger.info(f"EM Iteration {em_iter+1}/{num_em_iterations}")
 
             # E步：更新zeroshotExpander
-            self.logger.info(f"\n[E-Step] 训练 zeroshotExpander...")
+            self.logger.info(f"[E-Step] 训练 zeroshotExpander...")
             e_step_loss = self._em_e_step(
                 seen_classifier_weights,
                 seen_mask,
@@ -476,7 +476,7 @@ class TwoStageTrainer:
             all_weights = self._generate_all_weights()
 
             # M步：更新P(AU|EMO)
-            self.logger.info(f"\n[M-Step] 更新 P(AU|EMO)...")
+            self.logger.info(f"[M-Step] 更新 P(AU|EMO)...")
             m_step_stats = self._em_m_step(
                 train_loader,
                 all_weights,
@@ -889,9 +889,7 @@ class TwoStageTrainer:
         Returns:
             all_tasks_stats: 所有任务的评估统计
         """
-        self.logger.info(f"\n{'='*80}")
         self.logger.info(f"持续学习评估: 评估所有历史任务 (共 {len(self.historical_test_loaders)} 个任务)")
-        self.logger.info(f"{'='*80}")
 
         all_tasks_stats = {
             'num_tasks': len(self.historical_test_loaders),
@@ -965,9 +963,7 @@ class TwoStageTrainer:
             all_tasks_stats['tasks'].append(task_eval_stats)
 
         # 打印总结
-        self.logger.info(f"\n{'='*80}")
         self.logger.info(f"持续学习评估总结")
-        self.logger.info(f"{'='*80}")
 
         for task_stats in all_tasks_stats['tasks']:
             self.logger.info(f"\nTask {task_stats['task_id']}: {task_stats['task_name']}")
