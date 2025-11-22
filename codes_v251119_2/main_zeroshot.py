@@ -16,6 +16,8 @@ import torch
 from pathlib import Path
 from datetime import datetime
 
+torch.autograd.set_detect_anomaly(True)
+
 # 添加项目路径
 code_root = Path(__file__).parent
 project_root = code_root.parent

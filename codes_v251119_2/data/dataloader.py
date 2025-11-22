@@ -107,7 +107,6 @@ class IncrementalLabelMapper:
 
         print(f"\n当前全局映射: {self.original_to_incremental}")
         print(f"下一个可用标签: {self.next_incremental_label}")
-        print(f"{'='*70}\n")
 
         return {
             'task_id': task_id,
