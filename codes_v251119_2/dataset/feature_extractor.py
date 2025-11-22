@@ -34,7 +34,7 @@ class UtteranceFeatureExtractor:
             config: 配置字典
         """
         self.config = config
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
         # 视频处理配置
         extraction_config = config.get('extraction', {})
@@ -273,48 +273,40 @@ class UtteranceFeatureExtractor:
         # 计算采样间隔
         sample_interval = max(1, int(fps / self.video_sample_rate))
 
-        # 抽取关键帧
-        frames = []
+        # 渐进式处理：边抽帧边处理，使用 running average 避免累积所有帧特征
+        running_sum = None
+        total_processed_frames = 0
+        current_batch_frames = []
         for frame_idx in range(0, total_frames, sample_interval):
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
-
             if ret:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(frame)
-
-            # 限制最大帧数
-            if len(frames) >= self.max_frames:
-                break
-
+                current_batch_frames.append(frame)
+            # 当累积了足够的帧，或到达最后一帧时，处理当前batch
+            if len(current_batch_frames) >= self.video_batch_size or frame_idx + sample_interval >= total_frames:
+                if len(current_batch_frames) > 0:
+                    inputs = self.video_processor(images=current_batch_frames, return_tensors='pt').to(self.device)
+                    with torch.no_grad():
+                        outputs = self.video_model(**inputs)
+                        # 使用 [CLS] token
+                        batch_features = outputs.last_hidden_state[:, 0, :]  # [batch, 768]
+                    # 累积特征和（而非累积特征张量）
+                    batch_sum = batch_features.sum(dim=0).cpu()  # [768]
+                    if running_sum is None:
+                        running_sum = batch_sum
+                    else:
+                        running_sum += batch_sum
+                    total_processed_frames += len(current_batch_frames)
+                    # 清理内存
+                    del inputs, outputs, batch_features, batch_sum
+                    current_batch_frames = []
+                    self._cleanup_memory()
         cap.release()
-
-        if len(frames) == 0:
+        if total_processed_frames == 0:
             return torch.zeros(768)  # 如果没有帧，返回零向量
-
-        # 分批处理帧
-        all_features = []
-
-        for i in range(0, len(frames), self.video_batch_size):
-            batch_frames = frames[i:i + self.video_batch_size]
-
-            inputs = self.video_processor(images=batch_frames, return_tensors='pt').to(self.device)
-
-            with torch.no_grad():
-                outputs = self.video_model(**inputs)
-                # 使用 [CLS] token
-                batch_features = outputs.last_hidden_state[:, 0, :]  # [batch, 768]
-
-            all_features.append(batch_features.cpu())
-
-            del inputs, outputs, batch_features
-            self._cleanup_memory()
-
-        features = torch.cat(all_features, dim=0)  # [num_frames, 768]
-
-        # Mean pooling: 对所有帧取平均
-        features = features.mean(dim=0)  # [768]
-
+        # Mean pooling: 计算平均特征
+        features = running_sum / total_processed_frames  # [768]
         return features
     
     def extract_au_features(self, video_path: str) -> torch.Tensor:
@@ -339,7 +331,14 @@ class UtteranceFeatureExtractor:
                 self.openface_executable,
                 '-f', video_path,
                 '-out_dir', temp_dir,
-                '-aus'  # 只提取 AU 特征
+                '-aus',  # 只提取 AU 特征
+                '-fps', str(self.video_sample_rate),  # 使用相同的5fps采样率
+                '-q',  # 安静模式，减少输出
+                '-no-2Dfp',  # 不提取 2D 面部特征点
+                '-no-3Dfp',  # 不提取 3D 面部特征点
+                '-no-pose',  # 不提取头部姿态
+                '-no-gaze',  # 不提取眼睛注视方向
+                '-no-hogalign',  # 不提取 HOG 特征
             ]
             result = subprocess.run(
                 cmd,
