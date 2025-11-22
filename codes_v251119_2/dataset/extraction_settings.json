@@ -20,7 +20,7 @@
     "base_dir": "/media/sda/wf/openMM/Datasets/MELD/organized",
     "output_dir": "./output/meld_utterance_features",
     "split": "all",
-    "enabled": true,
+    "enabled": false,
     "description": "MELD 数据集配置，split 可选: all/train/dev/test",
     "stats": {
       "total_samples": 13708,
@@ -29,6 +29,20 @@
       "test": 2610,
       "avg_duration": "约3-5秒",
       "emotions": 7
+    }
+  },
+
+  "iemocap": {
+    "base_dir": "/media/sda/wf/openMM/Datasets/IEMOCAP/IEMOCAP_withVideo/IEMOCAP_full_release",
+    "output_dir": "./output/iemocap_utterance_features",
+    "temp_video_dir": "./temp_iemocap_videos",
+    "enabled": true,
+    "description": "IEMOCAP 数据集配置，包含视频切分和裁剪功能",
+    "stats": {
+      "total_samples": "约10000",
+      "sessions": 5,
+      "avg_duration": "约3-5秒",
+      "emotions": 9
     }
   },
 

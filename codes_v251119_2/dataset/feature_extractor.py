@@ -387,6 +387,84 @@ class UtteranceFeatureExtractor:
 
         return au_features
 
+    def preprocess_iemocap_video(
+        self,
+        video_path: str,
+        start_time: float,
+        end_time: float,
+        speaker_gender: str,
+        video_marker: str,
+        temp_dir: str
+    ) -> str:
+        """
+        预处理 IEMOCAP 视频：切分时间段并裁剪说话人区域
+
+        Args:
+            video_path: 完整 dialog 视频路径
+            start_time: utterance 开始时间（秒）
+            end_time: utterance 结束时间（秒）
+            speaker_gender: 说话人性别 'M' 或 'F'
+            video_marker: 视频标记（左边是谁）'M' 或 'F'
+            temp_dir: 临时文件目录
+
+        Returns:
+            processed_video_path: 处理后的视频路径
+        """
+        from moviepy.video.io.VideoFileClip import VideoFileClip
+        import uuid
+
+        try:
+            # 加载视频
+            video = VideoFileClip(video_path)
+
+            # 1. 时间切分
+            video_clip = video.subclip(start_time, end_time)
+
+            # 2. 空间裁剪：确定裁剪区域
+            width, height = video_clip.size
+
+            # 判断说话人在左边还是右边
+            if speaker_gender == video_marker:
+                # 说话人在左边
+                x1, y1, x2, y2 = 0, 0, width // 2, height
+            else:
+                # 说话人在右边
+                x1, y1, x2, y2 = width // 2, 0, width, height
+
+            # 裁剪视频
+            cropped_clip = video_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+
+            # 3. 保存临时视频文件
+            temp_video_path = os.path.join(temp_dir, f"temp_{uuid.uuid4().hex}.mp4")
+            cropped_clip.write_videofile(
+                temp_video_path,
+                codec='libx264',
+                audio=False,  # 不需要音频，因为音频已单独提取
+                verbose=False,
+                logger=None
+            )
+
+            # 4. 关闭所有视频对象释放内存
+            cropped_clip.close()
+            video_clip.close()
+            video.close()
+
+            # 强制垃圾回收
+            del cropped_clip, video_clip, video
+            gc.collect()
+
+            return temp_video_path
+
+        except Exception as e:
+            print(f"⚠ 视频预处理失败: {str(e)}")
+            # 确保资源被释放
+            try:
+                if 'video' in locals():
+                    video.close()
+            except:
+                pass
+            raise
+
     def extract_multimodal_features(
         self,
         text: str,
