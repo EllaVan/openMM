@@ -332,7 +332,7 @@ class TwoStageTrainer:
                 outputs = self.model(text, audio, video)
 
                 # ========== 分离监督 ==========
-                # 1. Direct路径：监督多模态编码器 + 直接分类器
+                # 1. Direct路径：计算梯度（监督多模态编码器 + 直接分类器）
                 loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
 
                 # EWC惩罚（只加到direct路径，因为backbone在这里更新）
@@ -344,28 +344,27 @@ class TwoStageTrainer:
                 self.optimizer_direct.zero_grad()
                 loss_direct.backward(retain_graph=True)  # 保留计算图，AU路径还要用
 
-                # 梯度裁剪（direct）
+                # 2. AU路径：计算梯度（监督AU预测分支 + AU-EMO矩阵）
+                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+
+                self.optimizer_au.zero_grad()
+                loss_au_path.backward()  # 不再需要retain_graph
+
+                # 梯度裁剪
                 if 'gradient_clip' in self.config['training']:
+                    # 裁剪direct参数的梯度
                     torch.nn.utils.clip_grad_norm_(
                         [p for group in self.optimizer_direct.param_groups for p in group['params']],
                         self.config['training']['gradient_clip']
                     )
-
-                self.optimizer_direct.step()
-
-                # 2. AU路径：监督AU预测分支 + AU-EMO矩阵
-                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
-
-                self.optimizer_au.zero_grad()
-                loss_au_path.backward()
-
-                # 梯度裁剪（AU）
-                if 'gradient_clip' in self.config['training']:
+                    # 裁剪AU参数的梯度
                     torch.nn.utils.clip_grad_norm_(
                         [p for group in self.optimizer_au.param_groups for p in group['params']],
                         self.config['training']['gradient_clip']
                     )
 
+                # 3. 更新参数（在所有梯度计算完成后）
+                self.optimizer_direct.step()
                 self.optimizer_au.step()
 
                 # 总损失（仅用于记录）
