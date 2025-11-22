@@ -101,6 +101,9 @@ class TwoStageTrainer:
             'tasks': []
         }
 
+        # 保存历史任务的test loaders和信息（用于持续学习评估）
+        self.historical_test_loaders = []  # List[Dict] - 每个元素: {'task_id': int, 'task_name': str, 'test_loaders': Dict, 'task_info': Dict}
+
         # 保存目录
         self.save_dir = Path(config['output']['save_dir'])
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -217,6 +220,18 @@ class TwoStageTrainer:
             task_stats['stage2_em_iterations'] = stage2_stats
         else:
             self.logger.info(f"\n# 阶段2: 无unseen数据，跳过")
+
+        # 保存当前任务的test loaders（用于持续学习评估）
+        self.historical_test_loaders.append({
+            'task_id': task_id,
+            'task_name': task_name,
+            'test_loaders': test_loaders,
+            'task_info': task_info
+        })
+
+        # 持续学习评估：评估所有历史任务（包括当前任务）
+        all_tasks_eval_stats = self._evaluate_all_tasks()
+        task_stats['continual_learning_eval'] = all_tasks_eval_stats
 
         # EWC合并
         if self.ewc is not None:
@@ -776,6 +791,166 @@ class TwoStageTrainer:
         return {
             'num_observations': total_samples
         }
+
+    def _evaluate_all_tasks(self) -> Dict:
+        """
+        评估所有历史任务（包括当前任务）的test data
+
+        使用两种分类器：
+        1. DirectEmotionClassifier权重（直接分类）
+        2. zeroshotExpander生成的all_weights（如果有unseen）
+
+        Returns:
+            all_tasks_stats: 所有任务的评估统计
+        """
+        self.logger.info(f"\n{'='*80}")
+        self.logger.info(f"持续学习评估: 评估所有历史任务 (共 {len(self.historical_test_loaders)} 个任务)")
+        self.logger.info(f"{'='*80}")
+
+        all_tasks_stats = {
+            'num_tasks': len(self.historical_test_loaders),
+            'tasks': []
+        }
+
+        # 获取DirectEmotionClassifier的权重
+        direct_classifier_weights = self.model.emotion_classifier.classifier[-1].weight.data  # [num_total_emotions, weight_dim]
+
+        # 如果有zeroshotExpander，生成all_weights
+        all_weights_zeroshot = None
+        if self.zeroshot_expander is not None:
+            all_weights_zeroshot = self._generate_all_weights()
+
+        # 遍历所有历史任务
+        for task_data in self.historical_test_loaders:
+            task_id = task_data['task_id']
+            task_name = task_data['task_name']
+            test_loaders = task_data['test_loaders']
+            task_info = task_data['task_info']
+
+            self.logger.info(f"\n评估 Task {task_id}: {task_name}")
+
+            task_eval_stats = {
+                'task_id': task_id,
+                'task_name': task_name,
+                'seen': {},
+                'unseen': {}
+            }
+
+            # 评估seen
+            if 'seen' in test_loaders and test_loaders['seen'] is not None:
+                seen_indices = list(task_info['mapping_info']['seen_mapping'].values())
+
+                # 使用DirectEmotionClassifier
+                seen_acc_direct = self._evaluate_with_weights(
+                    test_loaders['seen'],
+                    direct_classifier_weights,
+                    emotion_indices=seen_indices
+                )
+
+                task_eval_stats['seen']['direct_classifier'] = seen_acc_direct
+                self.logger.info(f"  Seen (DirectClassifier): {seen_acc_direct:.4f}")
+
+                # 如果有zeroshotExpander，也用all_weights评估
+                if all_weights_zeroshot is not None:
+                    seen_acc_zeroshot = self._evaluate_with_weights(
+                        test_loaders['seen'],
+                        all_weights_zeroshot,
+                        emotion_indices=seen_indices
+                    )
+                    task_eval_stats['seen']['zeroshot_expander'] = seen_acc_zeroshot
+                    self.logger.info(f"  Seen (ZeroshotExpander): {seen_acc_zeroshot:.4f}")
+
+            # 评估unseen
+            if 'unseen' in test_loaders and test_loaders['unseen'] is not None:
+                unseen_indices = list(task_info['mapping_info']['unseen_mapping'].values())
+
+                # Unseen只能用zeroshotExpander的all_weights
+                if all_weights_zeroshot is not None:
+                    unseen_acc = self._evaluate_with_weights(
+                        test_loaders['unseen'],
+                        all_weights_zeroshot,
+                        emotion_indices=unseen_indices
+                    )
+                    task_eval_stats['unseen']['zeroshot_expander'] = unseen_acc
+                    self.logger.info(f"  Unseen (ZeroshotExpander): {unseen_acc:.4f}")
+                else:
+                    self.logger.info(f"  Unseen: 无zeroshotExpander，跳过评估")
+
+            all_tasks_stats['tasks'].append(task_eval_stats)
+
+        # 打印总结
+        self.logger.info(f"\n{'='*80}")
+        self.logger.info(f"持续学习评估总结")
+        self.logger.info(f"{'='*80}")
+
+        for task_stats in all_tasks_stats['tasks']:
+            self.logger.info(f"\nTask {task_stats['task_id']}: {task_stats['task_name']}")
+            if task_stats['seen']:
+                self.logger.info(f"  Seen:")
+                for method, acc in task_stats['seen'].items():
+                    self.logger.info(f"    {method}: {acc:.4f}")
+            if task_stats['unseen']:
+                self.logger.info(f"  Unseen:")
+                for method, acc in task_stats['unseen'].items():
+                    self.logger.info(f"    {method}: {acc:.4f}")
+
+        return all_tasks_stats
+
+    def _evaluate_with_weights(
+        self,
+        test_loader: DataLoader,
+        classifier_weights: torch.Tensor,
+        emotion_indices: Optional[List[int]] = None
+    ) -> float:
+        """
+        使用给定的分类器权重评估test data
+
+        Args:
+            test_loader: 测试数据加载器
+            classifier_weights: 分类器权重 [num_classes, weight_dim]
+            emotion_indices: 可选，只评估特定情绪的准确率
+
+        Returns:
+            accuracy: 准确率
+        """
+        self.model.eval()
+
+        correct = 0
+        total = 0
+
+        with torch.no_grad():
+            for batch in test_loader:
+                text = batch['text'].to(self.device)
+                audio = batch['audio'].to(self.device)
+                video = batch['video'].to(self.device)
+                labels = batch['label'].to(self.device)  # 全局增量标签
+
+                # 获取融合特征
+                outputs = self.model(text, audio, video)
+                fused_features = outputs['fused_features']  # [batch_size, weight_dim]
+
+                # 直接分类：fused_features × classifier_weights.T
+                # classifier_weights: [num_classes, weight_dim]
+                # logits: [batch_size, num_classes]
+                logits = torch.mm(fused_features, classifier_weights.t())
+                preds = logits.argmax(dim=1)  # [batch_size] - 全局索引
+
+                # 如果指定了emotion_indices，只计算这些情绪的准确率
+                if emotion_indices is not None:
+                    # 过滤：只保留标签在emotion_indices中的样本
+                    valid_mask = torch.zeros(labels.shape[0], dtype=torch.bool, device=self.device)
+                    for idx in emotion_indices:
+                        valid_mask |= (labels == idx)
+
+                    if valid_mask.any():
+                        correct += (preds[valid_mask] == labels[valid_mask]).sum().item()
+                        total += valid_mask.sum().item()
+                else:
+                    correct += (preds == labels).sum().item()
+                    total += labels.size(0)
+
+        accuracy = correct / total if total > 0 else 0.0
+        return accuracy
 
     def _save_task_checkpoint(self, task_id: int, task_name: str, task_stats: Dict):
         """保存任务检查点"""
