@@ -81,4 +81,4 @@ output:
   log_dir: "output/logs"
 
 # ==================== 设备配置 ====================
-device: "cuda"  # cuda或cpu
+device: "cuda:1"  # cuda或cpu

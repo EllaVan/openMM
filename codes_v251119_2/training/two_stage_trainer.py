@@ -293,29 +293,36 @@ class TwoStageTrainer:
                 total_loss += loss.item()
                 num_batches += 1
 
-                preds = outputs['emo_from_au'].argmax(dim=1)
-                correct += (preds == labels).sum().item()
+                preds_prob = outputs['emo_from_au'].argmax(dim=1)
+                correct_prob += (preds_prob == labels).sum().item()
+                preds_direct = outputs['emo_direct'].argmax(dim=1)
+                correct_direct += (preds_direct == labels).sum().item()
                 total += labels.size(0)
 
                 progress_bar.set_postfix({
                     'loss': loss.item(),
-                    'acc': correct / total,
+                    'acc_prob': correct_prob / total,
+                    'acc_direct': correct_direct / total,
                 })
 
             # 评估
             avg_loss = total_loss / num_batches
-            train_acc = correct / total
-            test_acc = self._evaluate_seen(test_loader)
+            train_acc_prob = correct_prob / total
+            train_acc_direct = correct_direct / total
+            test_acc_prob, test_acc_direct = self._evaluate_seen(test_loader)
 
             epoch_stats.append({
                 'epoch': epoch + 1,
                 'train_loss': avg_loss,
-                'train_acc': train_acc,
-                'test_acc': test_acc
+                'train_acc_prob': train_acc_prob,
+                'train_acc_direct': train_acc_direct,
+                'test_acc_prob': test_acc_prob,
+                'test_acc_direct': test_acc_direct,
             })
 
             self.logger.info(f"Stage1 Epoch {epoch+1}: loss={avg_loss:.4f}, "
-                           f"train_acc={train_acc:.4f}, test_acc={test_acc:.4f}")
+                           f"train_acc_prob={train_acc_prob:.4f}, train_acc_direct={train_acc_direct:.4f},"
+                           f"test_acc={test_acc_prob:.4f}, test_acc={test_acc_direct:.4f},")
 
         return epoch_stats
 
@@ -356,9 +363,7 @@ class TwoStageTrainer:
 
         # EM迭代
         for em_iter in range(num_em_iterations):
-            self.logger.info(f"\n{'='*70}")
             self.logger.info(f"EM Iteration {em_iter+1}/{num_em_iterations}")
-            self.logger.info(f"{'='*70}")
 
             # E步：更新zeroshotExpander
             self.logger.info(f"\n[E-Step] 训练 zeroshotExpander...")
@@ -636,12 +641,15 @@ class TwoStageTrainer:
                 labels = batch['label'].to(self.device)
 
                 outputs = self.model(text, audio, video)
-                preds = outputs['emo_from_au'].argmax(dim=1)
-
-                correct += (preds == labels).sum().item()
+                preds_prob = outputs['emo_from_au'].argmax(dim=1)
+                correct_prob += (preds_prob == labels).sum().item()
+                preds_direct = outputs['emo_direct'].argmax(dim=1)
+                correct_direct += (preds_direct == labels).sum().item()
                 total += labels.size(0)
 
-        return correct / total if total > 0 else 0.0
+        acc_prob = correct_prob / total if total > 0 else 0.0
+        acc_direct = correct_direct / total if total > 0 else 0.0
+        return acc_prob, acc_direct
 
     def _evaluate_unseen(
         self,

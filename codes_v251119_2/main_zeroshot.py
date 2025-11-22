@@ -52,7 +52,7 @@ def setup_logger(log_dir: str) -> logging.Logger:
 
     # 格式化器
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     file_handler.setFormatter(formatter)
@@ -122,10 +122,8 @@ def main():
 
     # 2. 设置日志
     logger = setup_logger(config['output']['log_dir'])
-
-    logger.info("\n" + "#"*80)
+    
     logger.info("# Zero-shot Continual Learning Training")
-    logger.info("#"*80)
     
     logger.info(f"配置文件: {config_path}")
     logger.info(f"设备: {config['device']}")
