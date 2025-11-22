@@ -303,6 +303,12 @@ class TwoStageTrainer:
 
         训练backbone + AU分支 + seen分类器
         """
+        # 记录AU预测分支训练状态
+        if task_id == 0:
+            self.logger.info(f"  Task 0: 训练AU预测分支 + Direct分类器")
+        else:
+            self.logger.info(f"  Task {task_id}: AU预测分支已固定，仅训练Direct分类器")
+
         epoch_stats = []
 
         for epoch in range(num_epochs):
@@ -336,33 +342,49 @@ class TwoStageTrainer:
                     loss_direct = loss_direct + ewc_loss
 
                 self.optimizer_direct.zero_grad()
-                loss_direct.backward(retain_graph=True)  # 保留计算图，AU路径还要用
 
-                # 2. AU路径：计算梯度（监督AU预测分支，AU-EMO矩阵不参与训练）
-                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                # 2. AU路径：只在Task 0训练AU预测分支
+                if task_id == 0:
+                    # Task 0: 训练AU预测分支
+                    loss_direct.backward(retain_graph=True)  # 保留计算图，AU路径还要用
 
-                self.optimizer_au.zero_grad()
-                loss_au_path.backward()  # 不再需要retain_graph
+                    loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                    self.optimizer_au.zero_grad()
+                    loss_au_path.backward()
 
-                # 梯度裁剪
-                if 'gradient_clip' in self.config['training']:
-                    # 裁剪direct参数的梯度
-                    torch.nn.utils.clip_grad_norm_(
-                        [p for group in self.optimizer_direct.param_groups for p in group['params']],
-                        self.config['training']['gradient_clip']
-                    )
-                    # 裁剪AU参数的梯度
-                    torch.nn.utils.clip_grad_norm_(
-                        [p for group in self.optimizer_au.param_groups for p in group['params']],
-                        self.config['training']['gradient_clip']
-                    )
+                    # 梯度裁剪
+                    if 'gradient_clip' in self.config['training']:
+                        torch.nn.utils.clip_grad_norm_(
+                            [p for group in self.optimizer_direct.param_groups for p in group['params']],
+                            self.config['training']['gradient_clip']
+                        )
+                        torch.nn.utils.clip_grad_norm_(
+                            [p for group in self.optimizer_au.param_groups for p in group['params']],
+                            self.config['training']['gradient_clip']
+                        )
 
-                # 3. 更新参数（在所有梯度计算完成后）
-                self.optimizer_direct.step()
-                self.optimizer_au.step()
+                    # 更新参数
+                    self.optimizer_direct.step()
+                    self.optimizer_au.step()
 
-                # 总损失（仅用于记录）
-                total_batch_loss = loss_direct.item() + loss_au_path.item()
+                    total_batch_loss = loss_direct.item() + loss_au_path.item()
+                else:
+                    # Task 1+: AU预测分支固定，只训练Direct路径
+                    loss_direct.backward()
+
+                    # 梯度裁剪
+                    if 'gradient_clip' in self.config['training']:
+                        torch.nn.utils.clip_grad_norm_(
+                            [p for group in self.optimizer_direct.param_groups for p in group['params']],
+                            self.config['training']['gradient_clip']
+                        )
+
+                    # 只更新direct参数
+                    self.optimizer_direct.step()
+
+                    # AU路径损失仅用于监控
+                    loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                    total_batch_loss = loss_direct.item() + loss_au_path.item()
 
                 # 统计
                 total_loss += total_batch_loss
