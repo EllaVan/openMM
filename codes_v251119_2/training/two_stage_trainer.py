@@ -64,7 +64,7 @@ class TwoStageTrainer:
 
         # 优化器（分离监督）
         # optimizer_direct: 监督多模态编码器 + 直接分类器
-        # optimizer_au: 监督AU预测分支 + AU-EMO矩阵
+        # optimizer_au: 监督AU预测分支（不包括AU-EMO矩阵，矩阵由beta分布管理）
 
         # 收集多模态编码器参数（backbone）
         backbone_params = []
@@ -75,11 +75,8 @@ class TwoStageTrainer:
         # 收集直接分类器参数
         direct_classifier_params = list(model.emotion_classifier.parameters())
 
-        # 收集AU预测分支参数
+        # 收集AU预测分支参数（不包括AU-EMO矩阵）
         au_predictor_params = list(model.au_predictor.parameters())
-
-        # 收集AU-EMO矩阵参数
-        au_emo_matrix_params = list(model.au_emo_matrix.parameters())
 
         # 创建两个优化器
         self.optimizer_direct = optim.Adam(
@@ -88,13 +85,13 @@ class TwoStageTrainer:
         )
 
         self.optimizer_au = optim.Adam(
-            au_predictor_params + au_emo_matrix_params,
+            au_predictor_params,  # 只优化AU预测分支，不优化AU-EMO矩阵
             lr=config['training']['learning_rate']
         )
 
         self.logger.info(f"创建分离优化器:")
         self.logger.info(f"  optimizer_direct: 多模态编码器 + 直接分类器")
-        self.logger.info(f"  optimizer_au: AU预测分支 + AU-EMO矩阵")
+        self.logger.info(f"  optimizer_au: AU预测分支（AU-EMO矩阵由beta分布管理）")
 
         # Beta分布先验管理器
         prior_path = config.get('au_emo_prior_path', 'materials/au_emo_prior.json')
@@ -186,11 +183,8 @@ class TwoStageTrainer:
             # 收集直接分类器参数（包括新扩展的）
             direct_classifier_params = list(self.model.emotion_classifier.parameters())
 
-            # 收集AU预测分支参数
+            # 收集AU预测分支参数（不包括AU-EMO矩阵）
             au_predictor_params = list(self.model.au_predictor.parameters())
-
-            # 收集AU-EMO矩阵参数（包括新扩展的）
-            au_emo_matrix_params = list(self.model.au_emo_matrix.parameters())
 
             # 重新创建优化器
             self.optimizer_direct = optim.Adam(
@@ -199,11 +193,11 @@ class TwoStageTrainer:
             )
 
             self.optimizer_au = optim.Adam(
-                au_predictor_params + au_emo_matrix_params,
+                au_predictor_params,  # 只优化AU预测分支，AU-EMO矩阵由beta分布管理
                 lr=self.config['training']['learning_rate']
             )
 
-            self.logger.info(f"  优化器已更新（包含新扩展的参数）")
+            self.logger.info(f"  优化器已更新（AU-EMO矩阵由beta分布管理，不参与梯度优化）")
 
         # 激活当前任务的所有情绪（seen + unseen）
         self.logger.info(f"\n激活当前任务情绪...")
@@ -344,7 +338,7 @@ class TwoStageTrainer:
                 self.optimizer_direct.zero_grad()
                 loss_direct.backward(retain_graph=True)  # 保留计算图，AU路径还要用
 
-                # 2. AU路径：计算梯度（监督AU预测分支 + AU-EMO矩阵）
+                # 2. AU路径：计算梯度（监督AU预测分支，AU-EMO矩阵不参与训练）
                 loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
 
                 self.optimizer_au.zero_grad()
