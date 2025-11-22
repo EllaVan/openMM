@@ -1,0 +1,10 @@
+Input:/media/sda/wf/openMM/codes_v251119_2/data/output/temp_iemocap_videos/temp_393392e85c0843a6999130b10cfa7048.mp4
+Input full path:/media/sda/wf/openMM/codes_v251119_2/data/output/temp_iemocap_videos/temp_393392e85c0843a6999130b10cfa7048.mp4
+Camera parameters:390.625,390.625,180,240
+Output csv:temp_393392e85c0843a6999130b10cfa7048.csv
+Gaze: 0
+AUs: 1
+Landmarks 2D: 0
+Landmarks 3D: 0
+Pose: 0
+Shape parameters: 0

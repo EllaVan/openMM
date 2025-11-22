@@ -1,3 +1,5 @@
+Atmp/
+
 # for refer
 Data/
 DataFeatures/
@@ -14,6 +16,7 @@ checkpoints/
 
 codes_v251119_2/core/__pycache__/
 codes_v251119_2/data/__pycache__/
+codes_v251119_2/data/output/
 codes_v251119_2/dataset/__pycache__/
 codes_v251119_2/dataset/logs/
 codes_v251119_2/demo/
