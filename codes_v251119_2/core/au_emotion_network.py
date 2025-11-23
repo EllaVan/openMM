@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fusion.hypergraph_fusion import UnimodalEncoder, MultimodalHypergraphLayer
-from core.learnable_matrix import LearnableAUEMOMatrix
+from core.learnable_matrix import LearnableAUEMOMatrix_black as LearnableAUEMOMatrix
 
 
 class AUPredictor(nn.Module):
@@ -67,9 +67,7 @@ class AUPredictor(nn.Module):
 
 class DirectEmotionClassifier(nn.Module):
     """
-    直接情绪分类器
-
-    用于辅助训练和对比
+    直接情绪分类器, 用于辅助训练和对比
     """
 
     def __init__(
@@ -80,7 +78,7 @@ class DirectEmotionClassifier(nn.Module):
         dropout: float = 0.1
     ):
         super().__init__()
-
+        hidden_dim = input_dim // 2 if input_dim // 2 > hidden_dim else hidden_dim
         self.classifier = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
@@ -124,7 +122,7 @@ class AUEmotionNetwork(nn.Module):
         encoder_output_dim: int = 256,
         hypergraph_hidden_dim: int = 256,
         num_hyperedges: int = 64,
-        num_conv_layers: int = 2,
+        num_conv_layers: int = 5, #2,
         dropout: float = 0.1,
         # AU-EMO矩阵
         au_emo_prior: Optional[np.ndarray] = None,
@@ -143,21 +141,27 @@ class AUEmotionNetwork(nn.Module):
             input_dim=text_input_dim,
             hidden_dim=encoder_hidden_dim,
             output_dim=encoder_output_dim,
-            dropout=dropout
+            dropout=dropout, 
+            is_classifier=True, 
+            num_clsasses=num_emotions,
         )
 
         self.audio_encoder = UnimodalEncoder(
             input_dim=audio_input_dim,
             hidden_dim=encoder_hidden_dim,
             output_dim=encoder_output_dim,
-            dropout=dropout
+            dropout=dropout,
+            is_classifier=True, 
+            num_clsasses=num_emotions,
         )
 
         self.video_encoder = UnimodalEncoder(
             input_dim=video_input_dim,
             hidden_dim=encoder_hidden_dim,
             output_dim=encoder_output_dim,
-            dropout=dropout
+            dropout=dropout,
+            is_classifier=True, 
+            num_clsasses=num_emotions,
         )
 
         # 2. 多模态超图融合
@@ -260,9 +264,9 @@ class AUEmotionNetwork(nn.Module):
             }
         """
         # 1. 单模态编码
-        text_encoded = self.text_encoder(text)
-        audio_encoded = self.audio_encoder(audio)
-        video_encoded = self.video_encoder(video)
+        text_encoded, text_preds = self.text_encoder(text)
+        audio_encoded, audio_preds = self.audio_encoder(audio)
+        video_encoded, video_preds = self.video_encoder(video)
 
         # 2. 多模态融合
         fused_features = self.hypergraph(text_encoded, audio_encoded, video_encoded)
@@ -290,6 +294,35 @@ class AUEmotionNetwork(nn.Module):
             'fused_features': fused_features
         }
 
+    def _collate_params(self):
+        """
+        收集模型参数，便于优化器使用
+        Returns:
+            params: {
+                'backbone': [List of params],
+                'direct_classifier': [List of params],
+                'au_predictor': [List of params],
+                'au_emo_matrix': [List of params],
+            }
+        """
+        params = {}
+
+        backbone_params = []
+        for name, param in self.named_parameters():
+            if any(x in name for x in ['text_encoder', 'audio_encoder', 'video_encoder', 'hypergraph']):
+                backbone_params.append(param)
+        params['backbone'] = backbone_params
+
+        # 收集直接分类器参数
+        params['direct_classifier'] = list(self.emotion_classifier.parameters())
+
+        # 收集AU预测分支参数（不包括AU-EMO矩阵）
+        params['au_predictor'] = list(self.au_predictor.parameters())
+
+        # AU_EMO矩阵参数
+        params['au_emo_matrix'] = list(self.au_emo_matrix.parameters())
+
+        return params
 
 if __name__ == "__main__":
     # 测试代码

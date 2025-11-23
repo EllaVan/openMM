@@ -31,10 +31,12 @@ class UnimodalEncoder(nn.Module):
         input_dim: int,
         hidden_dim: int = 256,
         output_dim: int = 256,
-        dropout: float = 0.1
+        dropout: float = 0.1,
+        is_classifier: bool = True,
+        num_clsasses: Optional[int] = None
     ):
         super().__init__()
-
+        self.is_classifier = is_classifier
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
@@ -43,6 +45,8 @@ class UnimodalEncoder(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout)
         )
+        if is_classifier:
+            self.classifier = nn.Linear(output_dim, num_clsasses)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -51,7 +55,11 @@ class UnimodalEncoder(nn.Module):
         Returns:
             encoded: [batch_size, output_dim]
         """
-        return self.encoder(x)
+        x = self.encoder(x)
+        preds = None
+        if self.is_classifier:
+            preds = self.classifier(x)
+        return x, preds
 
 
 class MultimodalHypergraphLayer(nn.Module):
@@ -82,7 +90,7 @@ class MultimodalHypergraphLayer(nn.Module):
         video_dim: int = 256,
         hidden_dim: int = 256,
         num_hyperedges: int = 64,  # 保留参数但不使用
-        num_layers: int = 2,
+        num_layers: int = 5, #2,
         dropout: float = 0.1
     ):
         super().__init__()
@@ -98,7 +106,7 @@ class MultimodalHypergraphLayer(nn.Module):
             nn.Sequential(
                 nn.Linear(self.feature_dim, hidden_dim),
                 nn.BatchNorm1d(hidden_dim),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Dropout(dropout)
             ) for _ in range(num_layers)
         ])
@@ -106,17 +114,15 @@ class MultimodalHypergraphLayer(nn.Module):
         # 输出投影
         self.output_proj = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Dropout(dropout)
         )
 
     def compute_cosine_similarity_weights(self, features: torch.Tensor) -> torch.Tensor:
         """
         计算特征间的余弦相似度权重矩阵，使用softmax转换为概率形式
-
         Args:
             features: [batch_size, feature_dim]
-
         Returns:
             weights: [batch_size, batch_size] softmax归一化的相似度概率
         """

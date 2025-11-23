@@ -3,7 +3,8 @@
 """
 
 from .au_emotion_network import AUEmotionNetwork, AUPredictor, DirectEmotionClassifier
-from .learnable_matrix import LearnableAUEMOMatrix, load_au_emo_prior
+from .learnable_matrix import LearnableAUEMOMatrix_black as LearnableAUEMOMatrix
+from .learnable_matrix import load_au_emo_prior
 from .consistency_checker import MultimodalConsistencyChecker, ConsistencyStrategy
 from .ewc import EWC
 from .zeroshot_expander import zeroshotExpander

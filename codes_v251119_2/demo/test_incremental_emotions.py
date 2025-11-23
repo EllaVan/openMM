@@ -6,7 +6,7 @@ import numpy as np
 import sys
 # sys.path.append('/home/user/openMM/codes_v251119_2')
 
-from core.learnable_matrix import LearnableAUEMOMatrix
+from core.learnable_matrix import LearnableAUEMOMatrix_black as LearnableAUEMOMatrix
 
 print("=" * 70)
 print("测试增量情绪处理（Mask方案）")

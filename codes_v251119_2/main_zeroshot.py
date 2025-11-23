@@ -93,7 +93,7 @@ def create_model(config: dict, logger: logging.Logger) -> AUEmotionNetwork:
         audio_input_dim=config['model']['audio_input_dim'],
         video_input_dim=config['model']['video_input_dim'],
         num_aus=len(au_names), #config['model']['num_aus'],
-        num_emotions=len(emotion_names), #config['model']['num_emotions'],
+        num_emotions=config['model']['num_emotions'],
         encoder_hidden_dim=config['model']['encoder_hidden_dim'],
         encoder_output_dim=config['model']['encoder_output_dim'],
         hypergraph_hidden_dim=config['model']['hypergraph_hidden_dim'],

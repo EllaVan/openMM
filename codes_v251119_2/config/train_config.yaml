@@ -18,14 +18,14 @@ model:
 
   # AU和情绪
   num_aus: 20  # 实际使用的AU数量（前20个）
-  num_emotions: 7  # 总情绪类别数
+  num_emotions: 2 #7  # 总情绪类别数
 
   # 网络架构
   encoder_hidden_dim: 256
   encoder_output_dim: 256
   hypergraph_hidden_dim: 256
   num_hyperedges: 64
-  num_conv_layers: 2
+  num_conv_layers: 5 #2
   dropout: 0.3 #0.1
 
   # AU-EMO先验
@@ -37,9 +37,12 @@ training:
   learning_rate: 0.0001
   gradient_clip: 1.0
 
+  # 阶段0: 预热
+  warmup_epochs: 3  # 仅Task 0
+  warming_rate: 0.001
+
   # 阶段1: Seen训练
   stage1_epochs: 10 #20
-  warmup_epochs: 3  # 仅Task 0
 
   # 阶段2: Unseen Zero-shot
   em_iterations: 20  # EM迭代次数

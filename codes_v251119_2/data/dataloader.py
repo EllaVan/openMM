@@ -192,6 +192,7 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
             'text': [batch_size, text_dim],
             'audio': [batch_size, audio_dim],
             'video': [batch_size, video_dim],
+            'au': [batch_size, au_dim/num_aus],
             'label': [batch_size],  # 增量标签
             'original_label': [batch_size],  # 原始标签
             'is_seen': [batch_size]  # bool tensor
@@ -201,6 +202,7 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
     text = torch.stack([item['text_features'] for item in batch])
     audio = torch.stack([item['audio_features'] for item in batch])
     video = torch.stack([item['video_features'] for item in batch])
+    au = torch.stack([item['au_features'] for item in batch])
 
     # 标签
     labels = torch.tensor([item['label'] for item in batch], dtype=torch.long)
@@ -211,6 +213,7 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
         'text': text,
         'audio': audio,
         'video': video,
+        'au': au,
         'label': labels,
         'original_label': original_labels,
         'is_seen': is_seen
@@ -272,6 +275,25 @@ def load_emotion_pkl(
                 all_data.extend(data)
 
         return all_data
+    
+    if dataset_name == 'IEMOCAP':
+        # IEMOCAP 格式: IEMOCAP_happy.pkl
+        filename = f"{dataset_name}_{emotion_name}.pkl"
+        file_path = os.path.join(data_dir, filename)
+
+        if not os.path.exists(file_path):
+            print(f"  警告: 文件不存在 {file_path}")
+            return []
+
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+
+        # 如果是字典，转为列表
+        if isinstance(data, dict):
+            data = list(data.values())
+
+        return data
+
 
     else:
         raise ValueError(f"不支持的数据集: {dataset_name}")
@@ -311,9 +333,7 @@ def create_task_dataloaders(
     # torch.manual_seed(seed)
 
     # 1. 加载任务配置
-    print(f"\n{'='*80}")
     print(f"加载任务配置: {task_config_path}")
-    print(f"{'='*80}")
 
     with open(task_config_path, 'r') as f:
         config = json.load(f)
@@ -346,9 +366,7 @@ def create_task_dataloaders(
     )
 
     # 3. 加载数据
-    print(f"\n{'='*70}")
     print(f"加载数据文件...")
-    print(f"{'='*70}")
 
     all_data = []
 
@@ -401,9 +419,7 @@ def create_task_dataloaders(
             print(f"    加载了 {len(emotion_data)} 个样本")
 
     # 4. 划分训练集和测试集
-    print(f"\n{'='*70}")
     print(f"划分训练集和测试集 (比例: {train_ratio:.2f})")
-    print(f"{'='*70}")
 
     np.random.shuffle(all_data)
 
@@ -520,12 +536,10 @@ def load_all_tasks(
         )
 
         tasks_data.append((train_loader, test_loader, task_info))
-
-    print(f"\n{'#'*80}")
+        
     print(f"# 全部任务加载完成")
     print(f"# 总类数: {label_mapper.get_num_classes_so_far()}")
     print(f"# 全局标签映射: {label_mapper.original_to_incremental}")
-    print(f"{'#'*80}\n")
 
     return tasks_data
 

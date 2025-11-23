@@ -15,7 +15,7 @@ from typing import Optional, Dict, Tuple
 import json
 
 
-class LearnableAUEMOMatrix(nn.Module):
+class LearnableAUEMOMatrix_black(nn.Module): # log+sigmoid转换，黑盒处理
     """
     可学习的AU-EMO矩阵（基于正确的概率推理）
 
@@ -622,7 +622,7 @@ if __name__ == "__main__":
     prior_p = prior_p / prior_p.sum(axis=0, keepdims=True)
 
     # 初始化矩阵
-    matrix = LearnableAUEMOMatrix(
+    matrix = LearnableAUEMOMatrix_black(
         num_aus=num_aus,
         num_emotions=num_emotions,
         prior_p_au_given_emo=prior_p,

@@ -66,17 +66,16 @@ class TwoStageTrainer:
         # optimizer_direct: 监督多模态编码器 + 直接分类器
         # optimizer_au: 监督AU预测分支（不包括AU-EMO矩阵，矩阵由beta分布管理）
 
+        model_params = self.model._collate_params()
+
         # 收集多模态编码器参数（backbone）
-        backbone_params = []
-        for name, param in model.named_parameters():
-            if any(x in name for x in ['text_encoder', 'audio_encoder', 'video_encoder', 'hypergraph']):
-                backbone_params.append(param)
+        backbone_params = model_params['backbone']
 
         # 收集直接分类器参数
-        direct_classifier_params = list(model.emotion_classifier.parameters())
+        direct_classifier_params = model_params['direct_classifier']
 
         # 收集AU预测分支参数（不包括AU-EMO矩阵）
-        au_predictor_params = list(model.au_predictor.parameters())
+        au_predictor_params = model_params['au_predictor']
 
         # 创建两个优化器
         self.optimizer_direct = optim.Adam(
@@ -170,34 +169,10 @@ class TwoStageTrainer:
         self.logger.info(f"  当前类别数: {self.model.num_emotions}")
         self.logger.info(f"  需要类别数: {num_classes_so_far}")
 
+        is_check_optimizer = False
         if num_classes_so_far > self.model.num_emotions:
             self.model.expand_classifiers(num_classes_so_far)
-
-            # 重新创建优化器以包含新扩展的参数
-            # 收集多模态编码器参数（backbone）
-            backbone_params = []
-            for name, param in self.model.named_parameters():
-                if any(x in name for x in ['text_encoder', 'audio_encoder', 'video_encoder', 'hypergraph']):
-                    backbone_params.append(param)
-
-            # 收集直接分类器参数（包括新扩展的）
-            direct_classifier_params = list(self.model.emotion_classifier.parameters())
-
-            # 收集AU预测分支参数（不包括AU-EMO矩阵）
-            au_predictor_params = list(self.model.au_predictor.parameters())
-
-            # 重新创建优化器
-            self.optimizer_direct = optim.Adam(
-                backbone_params + direct_classifier_params,
-                lr=self.config['training']['learning_rate']
-            )
-
-            self.optimizer_au = optim.Adam(
-                au_predictor_params,  # 只优化AU预测分支，AU-EMO矩阵由beta分布管理
-                lr=self.config['training']['learning_rate']
-            )
-
-            self.logger.info(f"  优化器已更新（AU-EMO矩阵由beta分布管理，不参与梯度优化）")
+            is_check_optimizer = True
 
         # 激活当前任务的所有情绪（seen + unseen）
         self.logger.info(f"\n激活当前任务情绪...")
@@ -219,9 +194,38 @@ class TwoStageTrainer:
         task_stats = {
             'task_id': task_id,
             'task_name': task_name,
+            'stage0_epochs': [],
             'stage1_epochs': [],
             'stage2_em_iterations': []
         }
+
+        # 阶段0: 预热阶段（仅Task 0）
+        if task_id == 0 and self.config['training'].get('warmup_epochs', 0) > 0:
+            warmup_epochs = self.config['training']['warmup_epochs']
+            self.logger.info(f"# 阶段0|仅Task 0: 预热阶段 ({warmup_epochs} epochs)")
+            stage0_stats = self._warmup_phase(
+                train_loader=train_loaders['seen'],
+                test_loader=test_loaders['seen'],
+                num_epochs=warmup_epochs,
+                task_id=task_id
+            )
+        task_stats['stage0_epochs'] = stage0_stats
+
+        # 扩展分类器以适应新的类别数（再次检查，防止预热阶段修改了模型结构）
+        if is_check_optimizer:
+            model_params = self.model._collate_params()
+
+            # 重新创建优化器
+            self.optimizer_direct = optim.Adam(
+                model_params['backbone'] + model_params['direct_classifier'],
+                lr=self.config['training']['learning_rate']
+            )
+
+            self.optimizer_au = optim.Adam(
+                model_params['au_predictor'],  # 只优化AU预测分支，AU-EMO矩阵由beta分布管理
+                lr=self.config['training']['learning_rate']
+            )
+            self.logger.info(f"  优化器已更新（AU-EMO矩阵由beta分布管理，不参与梯度优化）")
 
         # 阶段1: Seen训练
         self.logger.info(f"# 阶段1: Seen训练 ({num_epochs_stage1} epochs)")
@@ -290,6 +294,107 @@ class TwoStageTrainer:
         self._save_task_checkpoint(task_id, task_name, task_stats)
 
         return task_stats
+    
+    def _warmup_phase(
+        self,
+        train_loader: DataLoader,
+        test_loader: DataLoader,
+        num_epochs: int,
+        task_id: int
+    ) -> List[Dict]:
+        """
+        预热阶段（仅Task 0）, 固定P(AU|EMO), 预热AU预测器, 
+        训练: unimodal维度映射+ hypergraph融合+AU预测器+情绪预测器
+        """
+        if task_id != 0:
+            return 
+        self.logger.info(f"# 阶段0|仅Task 0: 预热阶段 ({num_epochs} epochs)")
+
+        model_params = self.model._collate_params()
+        self.optimizer_warmup = optim.SGD(
+                model_params['backbone']+model_params['direct_classifier']+model_params['au_predictor'],
+                lr=self.config['training']['warming_rate'],
+                momentum=0.9,
+            )
+
+        epoch_stats = []
+
+        for epoch in range(num_epochs):
+            self.model.train()
+            self.model.au_emo_matrix.freeze()  # 固定P(AU|EMO)
+
+            total_loss = 0
+            correct_prob = 0
+            correct_direct = 0
+            total = 0
+            num_batches = 0
+
+            progress_bar = tqdm(train_loader, desc=f'Stage0 WarmUp {epoch+1}/{num_epochs}', ncols=80)
+
+            for batch in progress_bar:
+                # 获取数据
+                text = batch['text'].to(self.device)
+                audio = batch['audio'].to(self.device)
+                video = batch['video'].to(self.device)
+                labels = batch['label'].to(self.device)  # 全局增量标签
+
+                # 前向传播
+                outputs = self.model(text, audio, video)
+
+                # ========== 固定P(AU|EMO), 统一训练其他 ==========
+                # Direct路径：计算梯度（监督多模态编码器 + 直接分类器）
+                loss_direct = F.cross_entropy(outputs['emo_direct'], labels)
+                loss_au_path = F.cross_entropy(outputs['emo_from_au'], labels)
+                loss = loss_direct + loss_au_path
+                self.optimizer_warmup.zero_grad()
+                loss.backward()
+
+                # 梯度裁剪
+                if 'gradient_clip' in self.config['training']:
+                    torch.nn.utils.clip_grad_norm_(
+                        [p for group in self.optimizer_warmup.param_groups for p in group['params']],
+                        self.config['training']['gradient_clip']
+                    )
+
+                # 更新参数
+                self.optimizer_warmup.step()
+                total_batch_loss = loss.item()
+
+            # 统计
+            total_loss += total_batch_loss
+            num_batches += 1
+
+            preds_prob = outputs['emo_from_au'].argmax(dim=1)
+            correct_prob += (preds_prob == labels).sum().item()
+            preds_direct = outputs['emo_direct'].argmax(dim=1)
+            correct_direct += (preds_direct == labels).sum().item()
+            total += labels.size(0)
+
+            progress_bar.set_postfix({
+                'loss': total_batch_loss,
+                'acc_prob': correct_prob / total,
+                'acc_direct': correct_direct / total,
+            })
+
+        # 评估
+        avg_loss = total_loss / num_batches
+        train_acc_prob = correct_prob / total
+        train_acc_direct = correct_direct / total
+        test_acc_prob, test_acc_direct = self._evaluate_seen(test_loader)
+
+        epoch_stats.append({
+            'epoch': epoch + 1,
+            'train_loss': avg_loss,
+            'train_acc_prob': train_acc_prob,
+            'train_acc_direct': train_acc_direct,
+            'test_acc_prob': test_acc_prob,
+            'test_acc_direct': test_acc_direct,
+        })
+
+        self.logger.info(f"Stage0 Epoch {epoch+1}: loss={avg_loss:.4f}, "
+                        f"train_acc_prob={train_acc_prob:.4f}, train_acc_direct={train_acc_direct:.4f},"
+                        f"test_acc_prob={test_acc_prob:.4f}, test_acc_direct={test_acc_direct:.4f},")
+        return epoch_stats
 
     def _stage1_seen_training(
         self,
