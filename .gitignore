@@ -10,6 +10,7 @@ referCodes/
 # for unimodal feature extraction outputs
 codes_v251112/
 codes_v251119/
+codes_v251119_2_update/
 
 outputs/
 checkpoints/
@@ -21,6 +22,7 @@ codes_v251119_2/data/output/
 codes_v251119_2/dataset/__pycache__/
 codes_v251119_2/dataset/logs/
 codes_v251119_2/demo/
+codes_v251119_2/fusion/__pycache__/
 codes_v251119_2/logs/
 codes_v251119_2/outputs/
 codes_v251119_2/output/
